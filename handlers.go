@@ -66,6 +66,7 @@ var (
 	once             sync.Once
 	knownLogs        monitoring.Gauge     // origin => value (always 1.0)
 	lastSCTTimestamp monitoring.Gauge     // origin => value
+	lastSCTIndex     monitoring.Gauge     // origin => value
 	reqsCounter      monitoring.Counter   // origin, ep => value
 	rspsCounter      monitoring.Counter   // origin, ep, rc => value
 	rspLatency       monitoring.Histogram // origin, ep, rc => value
@@ -75,6 +76,7 @@ var (
 func setupMetrics(mf monitoring.MetricFactory) {
 	knownLogs = mf.NewGauge("known_logs", "Set to 1 for known logs", "logid")
 	lastSCTTimestamp = mf.NewGauge("last_sct_timestamp", "Time of last SCT in ms since epoch", "logid")
+	lastSCTIndex = mf.NewGauge("last_sct_index", "Index of last SCT", "logid")
 	reqsCounter = mf.NewCounter("http_reqs", "Number of requests", "logid", "ep")
 	rspsCounter = mf.NewCounter("http_rsps", "Number of responses", "logid", "ep", "rc")
 	rspLatency = mf.NewHistogram("http_latency", "Latency of responses in seconds", "logid", "ep", "rc")
@@ -381,6 +383,10 @@ func addChainInternal(ctx context.Context, li *logInfo, w http.ResponseWriter, r
 	klog.V(3).Infof("%s: %s <= SCT", li.LogOrigin, method)
 	if sct.Timestamp == timeMillis {
 		lastSCTTimestamp.Set(float64(sct.Timestamp), li.LogOrigin)
+	}
+	// TODO(phboneff): if there is some deduplication in Tessera, this won't necessarily go up
+	if !isDup {
+		lastSCTIndex.Set(float64(idx), li.LogOrigin)
 	}
 
 	return http.StatusOK, nil
