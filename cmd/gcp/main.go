@@ -64,7 +64,6 @@ var (
 	projectID          = flag.String("project_id", "", "GCP ProjectID.")
 	bucket             = flag.String("bucket", "", "Name of the bucket to store the log in.")
 	spannerDB          = flag.String("spanner_db_path", "", "Spanner database path: projects/{projectId}/instances/{instanceId}/databases/{databaseId}.")
-	spannerDedupDB     = flag.String("spanner_dedup_db_path", "", "Spanner deduplication database path: projects/{projectId}/instances/{instanceId}/databases/{databaseId}.")
 	rootsPemFile       = flag.String("roots_pem_file", "", "Path to the file containing root certificates that are acceptable to the log. The certs are served through get-roots endpoint.")
 	rejectExpired      = flag.Bool("reject_expired", false, "If true then the certificate validity period will be checked against the current time during the validation of submissions. This will cause expired certificates to be rejected.")
 	rejectUnexpired    = flag.Bool("reject_unexpired", false, "If true then CTFE rejects certificates that are either currently valid or not yet valid.")
@@ -239,12 +238,7 @@ func newGCPStorage(ctx context.Context, signer note.Signer) (*sctfe.CTStorage, e
 		return nil, fmt.Errorf("Failed to initialize GCP issuer storage: %v", err)
 	}
 
-	beDedupStorage, err := gcpSCTFE.NewDedupeStorage(ctx, *spannerDedupDB)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize GCP Spanner deduplication database: %v", err)
-	}
-
-	return sctfe.NewCTSTorage(tesseraStorage, issuerStorage, beDedupStorage)
+	return sctfe.NewCTSTorage(tesseraStorage, issuerStorage, nil)
 }
 
 type timestampFlag struct {

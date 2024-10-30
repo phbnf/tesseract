@@ -318,38 +318,20 @@ func addChainInternal(ctx context.Context, li *logInfo, w http.ResponseWriter, r
 		return http.StatusBadRequest, fmt.Errorf("failed to build MerkleTreeLeaf: %s", err)
 	}
 
-	klog.V(2).Infof("%s: %s => storage.GetCertIndex", li.LogOrigin, method)
-	idx, isDup, err := li.storage.GetCertIndex(ctx, chain[0])
+	if err := li.storage.AddIssuerChain(ctx, chain[1:]); err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed to store issuer chain: %s", err)
+	}
+
+	klog.V(2).Infof("%s: %s => storage.Add", li.LogOrigin, method)
+	idx, err := li.storage.Add(ctx, entry)()
 	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("couldn't deduplicate the request: %s", err)
+		if errors.Is(err, tessera.ErrPushback) {
+			w.Header().Add("Retry-After", "1")
+			return http.StatusServiceUnavailable, fmt.Errorf("Tessera sequencer pushed back: %v", err)
+		}
+		return http.StatusInternalServerError, fmt.Errorf("couldn't store the leaf: %v", err)
 	}
-
-	if isDup {
-		klog.V(3).Infof("%s: %s - found duplicate entry at index %d", li.LogOrigin, method, idx)
-	} else {
-		if err := li.storage.AddIssuerChain(ctx, chain[1:]); err != nil {
-			return http.StatusInternalServerError, fmt.Errorf("failed to store issuer chain: %s", err)
-		}
-
-		klog.V(2).Infof("%s: %s => storage.Add", li.LogOrigin, method)
-		idx, err = li.storage.Add(ctx, entry)()
-		if err != nil {
-			if errors.Is(err, tessera.ErrPushback) {
-				w.Header().Add("Retry-After", "1")
-				return http.StatusServiceUnavailable, fmt.Errorf("Tessera sequencer pushed back: %v", err)
-			}
-			return http.StatusInternalServerError, fmt.Errorf("couldn't store the leaf: %v", err)
-		}
-		// We store the index for this certificate in the deduplication storage immediately.
-		// It might be stored again later, if a local deduplication storage is synced, potentially
-		// with a smaller value.
-		klog.V(2).Infof("%s: %s => storage.AddCertIndex", li.LogOrigin, method)
-		err := li.storage.AddCertIndex(ctx, chain[0], idx)
-		// TODO: block log writes if deduplication breaks
-		if err != nil {
-			klog.Warningf("AddCertIndex(): failed to store certificate index: %v", err)
-		}
-	}
+	
 
 	// Always use the returned leaf as the basis for an SCT.
 	var loggedLeaf ct.MerkleTreeLeaf
