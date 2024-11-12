@@ -52,23 +52,23 @@ var (
 	notAfterStart timestampFlag
 	notAfterLimit timestampFlag
 
-	httpEndpoint               = flag.String("http_endpoint", "localhost:6962", "Endpoint for HTTP (host:port).")
-	metricsEndpoint            = flag.String("metrics_endpoint", "", "Endpoint for serving metrics; if left empty, metrics will be visible on --http_endpoint.")
-	tesseraDeadline            = flag.Duration("tessera_deadline", time.Second*10, "Deadline for Tessera requests.")
-	maskInternalErrors         = flag.Bool("mask_internal_errors", false, "Don't return error strings with Internal Server Error HTTP responses.")
-	tracing                    = flag.Bool("tracing", false, "If true opencensus Stackdriver tracing will be enabled. See https://opencensus.io/.")
-	tracingProjectID           = flag.String("tracing_project_id", "", "project ID to pass to stackdriver. Can be empty for GCP, consult docs for other platforms.")
-	tracingPercent             = flag.Int("tracing_percent", 0, "Percent of requests to be traced. Zero is a special case to use the DefaultSampler.")
-	dedupPath                  = flag.String("dedup_path", "", "Path to the deduplication database.")
-	origin                     = flag.String("origin", "", "Origin of the log, for checkpoints and the monitoring prefix.")
-	projectID                  = flag.String("project_id", "", "GCP ProjectID.")
-	bucket                     = flag.String("bucket", "", "Name of the bucket to store the log in.")
-	spannerDB                  = flag.String("spanner_db_path", "", "Spanner database path: projects/{projectId}/instances/{instanceId}/databases/{databaseId}.")
-	rootsPemFile               = flag.String("roots_pem_file", "", "Path to the file containing root certificates that are acceptable to the log. The certs are served through get-roots endpoint.")
-	rejectExpired              = flag.Bool("reject_expired", false, "If true then the certificate validity period will be checked against the current time during the validation of submissions. This will cause expired certificates to be rejected.")
-	rejectUnexpired            = flag.Bool("reject_unexpired", false, "If true then CTFE rejects certificates that are either currently valid or not yet valid.")
-	extKeyUsages               = flag.String("ext_key_usages", "", "If set, will restrict the set of such usages that the server will accept. By default all are accepted. The values specified must be ones known to the x509 package.")
-	rejectExtensions           = flag.String("reject_extension", "", "A list of X.509 extension OIDs, in dotted string form (e.g. '2.3.4.5') which, if present, should cause submissions to be rejected.")
+	httpEndpoint       = flag.String("http_endpoint", "localhost:6962", "Endpoint for HTTP (host:port).")
+	metricsEndpoint    = flag.String("metrics_endpoint", "", "Endpoint for serving metrics; if left empty, metrics will be visible on --http_endpoint.")
+	tesseraDeadline    = flag.Duration("tessera_deadline", time.Second*10, "Deadline for Tessera requests.")
+	maskInternalErrors = flag.Bool("mask_internal_errors", false, "Don't return error strings with Internal Server Error HTTP responses.")
+	tracing            = flag.Bool("tracing", false, "If true opencensus Stackdriver tracing will be enabled. See https://opencensus.io/.")
+	tracingProjectID   = flag.String("tracing_project_id", "", "project ID to pass to stackdriver. Can be empty for GCP, consult docs for other platforms.")
+	tracingPercent     = flag.Int("tracing_percent", 0, "Percent of requests to be traced. Zero is a special case to use the DefaultSampler.")
+	dedupPath          = flag.String("dedup_path", "", "Path to the deduplication database.")
+	origin             = flag.String("origin", "", "Origin of the log, for checkpoints and the monitoring prefix.")
+	projectID          = flag.String("project_id", "", "GCP ProjectID.")
+	bucket             = flag.String("bucket", "", "Name of the bucket to store the log in.")
+	spannerDB          = flag.String("spanner_db_path", "", "Spanner database path: projects/{projectId}/instances/{instanceId}/databases/{databaseId}.")
+	rootsPemFile       = flag.String("roots_pem_file", "", "Path to the file containing root certificates that are acceptable to the log. The certs are served through get-roots endpoint.")
+	rejectExpired      = flag.Bool("reject_expired", false, "If true then the certificate validity period will be checked against the current time during the validation of submissions. This will cause expired certificates to be rejected.")
+	rejectUnexpired    = flag.Bool("reject_unexpired", false, "If true then CTFE rejects certificates that are either currently valid or not yet valid.")
+	extKeyUsages       = flag.String("ext_key_usages", "", "If set, will restrict the set of such usages that the server will accept. By default all are accepted. The values specified must be ones known to the x509 package.")
+	rejectExtensions   = flag.String("reject_extension", "", "A list of X.509 extension OIDs, in dotted string form (e.g. '2.3.4.5') which, if present, should cause submissions to be rejected.")
 	privKey            = flag.String("private_key", "", "Path to a private key .der file. Used to sign checkpoints and SCTs.")
 	privKeyPass        = flag.String("password", "", "private_key password.")
 )
@@ -206,9 +206,8 @@ func awaitSignal(doneFn func()) {
 
 func newGCPStorage(ctx context.Context, signer note.Signer, verifier note.Verifier) (*sctfe.CTStorage, error) {
 	gcpCfg := gcpTessera.Config{
-		ProjectID: *projectID,
-		Bucket:    *bucket,
-		Spanner:   *spannerDB,
+		Bucket:  *bucket,
+		Spanner: *spannerDB,
 	}
 	tesseraStorage, err := gcpTessera.New(ctx, gcpCfg, tessera.WithCheckpointSignerVerifier(signer, verifier), tessera.WithCTLayout())
 	if err != nil {
@@ -226,12 +225,7 @@ func newGCPStorage(ctx context.Context, signer note.Signer, verifier note.Verifi
 		return nil, fmt.Errorf("failed to initialize BBolt deduplication database: %v", err)
 	}
 
-	fetcher, err := gcpSCTFE.GetFetcher(ctx, *bucket)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get a log fetcher: %v", err)
-	}
-
-	go dedup.UpdateFromLog(ctx, beDedupStorage, time.Second, fetcher, sctfe.DedupFromBundle)
+	go dedup.UpdateFromLog(ctx, beDedupStorage, time.Second, tesseraStorage.ReadCheckpoint, tesseraStorage.ReadEntryBundle, sctfe.DedupFromBundle)
 
 	return sctfe.NewCTSTorage(tesseraStorage, issuerStorage, beDedupStorage)
 }
