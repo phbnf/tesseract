@@ -2,7 +2,9 @@
 
 ## Prerequisites
 You'll need to have a VM running in the same GCP project that you can SSH to,
-with Go installed, and your favourite terminal multiplexer.
+with [Go](https://go.dev/doc/install) and 
+[terragrunt](https://terragrunt.gruntwork.io/docs/getting-started/install/) 
+installed, and your favourite terminal multiplexer.
 
 ## Overview
 
@@ -19,11 +21,13 @@ At a high level, this environment consists of:
 
 First authenticate via `gcloud` as a principle with sufficient ACLs for
 the project:
+
 ```bash
 gcloud auth application-default login
 ```
 
 Set the required environment variables:
+
 ```bash
 export GOOGLE_PROJECT={VALUE}
 export GOOGLE_REGION={VALUE} # e.g: us-central1
@@ -34,12 +38,29 @@ Terraforming the project can be done by:
  1. `cd` to the relevant directory for the environment to deploy/change (e.g. `ci`)
  2. Run `terragrunt apply`
 
+Store the Secret Manager resource ID of signer key pair into the environment variables:
+
+```sh
+export SCTFE_SIGNER_ECDSA_P256_PUBLIC_KEY_ID=$(terragrunt output -raw ecdsa_p256_public_key_id)
+export SCTFE_SIGNER_ECDSA_P256_PRIVATE_KEY_ID=$(terragrunt output -raw ecdsa_p256_private_key_id)
+```
+
 ## Run the SCTFE
+
 ### With fake chains
 
 On the VM, run the following command to bring up the SCTFE:
+
 ```bash
-go run ./cmd/gcp/ --project_id=${GOOGLE_PROJECT} --bucket=${GOOGLE_PROJECT}-${TESSERA_BASE_NAME}-bucket --spanner_db_path=projects/${GOOGLE_PROJECT}/instances/${TESSERA_BASE_NAME}/databases/${TESSERA_BASE_NAME}-db --spanner_db_path=projects/${GOOGLE_PROJECT}/instances/${TESSERA_BASE_NAME}/databases/${TESSERA_BASE_NAME}-dedup-db --private_key=./testdata/ct-http-server.privkey.pem  --password=dirk --roots_pem_file=./testdata/fake-ca.cert --origin=${TESSERA_BASE_NAME}
+go run ./cmd/gcp/ \
+  --project_id=${GOOGLE_PROJECT} \
+  --bucket=${GOOGLE_PROJECT}-${TESSERA_BASE_NAME}-bucket \
+  --spanner_db_path=projects/${GOOGLE_PROJECT}/instances/${TESSERA_BASE_NAME}/databases/${TESSERA_BASE_NAME}-db \
+  --spanner_dedup_db_path=projects/${GOOGLE_PROJECT}/instances/${TESSERA_BASE_NAME}/databases/${TESSERA_BASE_NAME}-dedup-db \
+  --roots_pem_file=./testdata/fake-ca.cert \
+  --origin=${TESSERA_BASE_NAME} \
+  --signer_public_key_secret_name=${SCTFE_SIGNER_ECDSA_P256_PUBLIC_KEY_ID} \
+  --signer_private_key_secret_name=${SCTFE_SIGNER_ECDSA_P256_PRIVATE_KEY_ID}
 ```
 
 In a different terminal you can either mint and submit certificates manually, or
@@ -48,30 +69,25 @@ tool](https://github.com/google/certificate-transparency-go/blob/master/trillian
 to do this.
 
 #### Generate chains manually
-First, save the SCTFE repo's path:
 
-```bash
-export SCTFE_REPO=$(pwd)
-```
-
-Clone the [certificate-transparency-go](https://github.com/google/certificate-transparency-go) repo.
-Then, generate a chain manually. The password for the private key is `gently`:
+Generate a chain manually. The password for the private key is `gently`:
 
 ```bash
 mkdir -p /tmp/httpschain
 openssl genrsa -out /tmp/httpschain/cert.key 2048
-openssl req -new -key /tmp/httpschain/cert.key -out /tmp/httpschain/cert.csr -config=${SCTFE_REPO}/testdata/fake-ca.cfg
-openssl x509 -req -days 3650 -in /tmp/httpschain/cert.csr -CAkey ${SCTFE_REPO}/testdata/fake-ca.privkey.pem -CA  ${SCTFE_REPO}/testdata/fake-ca.cert -outform pem -out /tmp/httpschain/chain.pem -provider legacy -provider default
-cat ${SCTFE_REPO}/testdata/fake-ca.cert >> /tmp/httpschain/chain.pem
+openssl req -new -key /tmp/httpschain/cert.key -out /tmp/httpschain/cert.csr -config=testdata/fake-ca.cfg
+openssl x509 -req -days 3650 -in /tmp/httpschain/cert.csr -CAkey testdata/fake-ca.privkey.pem -CA testdata/fake-ca.cert -outform pem -out /tmp/httpschain/chain.pem -provider legacy -provider default
+cat testdata/fake-ca.cert >> /tmp/httpschain/chain.pem
 ```
 
 Finally, submit the chain to the SCTFE:
 
 ```bash
-go run ./client/ctclient upload --cert_chain=/tmp/httpschain/chain.pem --skip_https_verify --log_uri=http://localhost:6962/${TESSERA_BASE_NAME}
+go run github.com/google/certificate-transparency-go/client/ctclient@master upload --cert_chain=/tmp/httpschain/chain.pem --skip_https_verify --log_uri=http://localhost:6962/${TESSERA_BASE_NAME}
 ```
 
 #### Automatically generate chains
+
 Save the SCTFE repo's path:
 
 ```bash
@@ -81,10 +97,26 @@ export SCTFE_REPO=$(pwd)
 Clone the [certificate-transparency-go](https://github.com/google/certificate-transparency-go) repo, and from there run:
 
 ```bash
-go run ./trillian/integration/ct_hammer/ --ct_http_servers=localhost:6962/${TESSERA_BASE_NAME} --max_retry=2m --invalid_chance=0 --get_sth=0 --get_sth_consistency=0 --get_proof_by_hash=0 --get_entries=0 --get_roots=0 --get_entry_and_proof=0 --max_parallel_chains=4 --skip_https_verify=true --operations=10000 --rate_limit=150 --log_config=${SCTFE_REPO}/testdata/hammer.cfg --testdata_dir=./trillian/testdata/
+go run ./trillian/integration/ct_hammer/ \
+  --ct_http_servers=localhost:6962/${TESSERA_BASE_NAME} \
+  --max_retry=2m \
+  --invalid_chance=0 \
+  --get_sth=0 \
+  --get_sth_consistency=0 \
+  --get_proof_by_hash=0 \
+  --get_entries=0 \
+  --get_roots=0 \
+  --get_entry_and_proof=0 \
+  --max_parallel_chains=4 \
+  --skip_https_verify=true \
+  --operations=10000 \
+  --rate_limit=150 \
+  --log_config=${SCTFE_REPO}/testdata/hammer.cfg \
+  --testdata_dir=./trillian/testdata/
 ```
 
 ### With real HTTPS certificates
+
 We'll run a SCTFE and copy certificates from an existing RFC6962 log to it.
 It uses the [ct_hammer tool from certificate-transparency-go](https://github.com/google/certificate-transparency-go/tree/aceb1d4481907b00c087020a3930c7bd691a0110/trillian/integration/ct_hammer).
 
@@ -106,18 +138,40 @@ go run ./client/ctclient get-roots --log_uri=${SRC_LOG_URI} --text=false > /tmp/
 sed -i 's-""-"/tmp/hammercfg/roots.pem"-g' /tmp/hammercfg/hammer.cfg
 ```
 
-
 Run the SCTFE with the same roots:
 
 ```bash
 cd ${SCTFE_REPO}
-go run ./cmd/gcp/ --project_id=${GOOGLE_PROJECT} --bucket=${GOOGLE_PROJECT}-${TESSERA_BASE_NAME}-bucket --spanner_db_path=projects/${GOOGLE_PROJECT}/instances/${TESSERA_BASE_NAME}/databases/${TESSERA_BASE_NAME}-db --private_key=./testdata/ct-http-server.privkey.pem  --password=dirk --roots_pem_file=/tmp/hammercfg/roots.pem --origin=${TESSERA_BASE_NAME} --spanner_dedup_db_path=projects/${GOOGLE_PROJECT}/instances/${TESSERA_BASE_NAME}/databases/${TESSERA_BASE_NAME}-dedup-db -v=3
+go run ./cmd/gcp/ \
+  --project_id=${GOOGLE_PROJECT} \
+  --bucket=${GOOGLE_PROJECT}-${TESSERA_BASE_NAME}-bucket \
+  --spanner_db_path=projects/${GOOGLE_PROJECT}/instances/${TESSERA_BASE_NAME}/databases/${TESSERA_BASE_NAME}-db \
+  --roots_pem_file=/tmp/hammercfg/roots.pem \
+  --origin=${TESSERA_BASE_NAME} \
+  --spanner_dedup_db_path=projects/${GOOGLE_PROJECT}/instances/${TESSERA_BASE_NAME}/databases/${TESSERA_BASE_NAME}-dedup-db \
+  --signer_public_key_secret_name=${SCTFE_SIGNER_ECDSA_P256_PUBLIC_KEY_ID} \
+  --signer_private_key_secret_name=${SCTFE_SIGNER_ECDSA_P256_PRIVATE_KEY_ID} \
+  -v=3
 ```
 
 Run `ct_hammer` in a different terminal:
 
 ```bash
 cd ${CTGO_REPO}
-go run ./trillian/integration/ct_hammer/ --ct_http_servers=localhost:6962/${TESSERA_BASE_NAME} --max_retry=2m --invalid_chance=0 --get_sth=0 --get_sth_consistency=0  --get_proof_by_hash=0 --get_entries=0 --get_roots=0 --get_entry_and_proof=0 --max_parallel_chains=4 --skip_https_verify=true --operations=10000 --rate_limit=150 --log_config=/tmp/hammercfg/hammer.cfg --src_log_uri=${SRC_LOG_URI}
+go run ./trillian/integration/ct_hammer/ \
+  --ct_http_servers=localhost:6962/${TESSERA_BASE_NAME} \
+  --max_retry=2m \
+  --invalid_chance=0 \
+  --get_sth=0 \
+  --get_sth_consistency=0 \
+  --get_proof_by_hash=0 \
+  --get_entries=0 \
+  --get_roots=0 \
+  --get_entry_and_proof=0 \
+  --max_parallel_chains=4 \
+  --skip_https_verify=true \
+  --operations=10000 \
+  --rate_limit=150 \
+  --log_config=/tmp/hammercfg/hammer.cfg \
+  --src_log_uri=${SRC_LOG_URI}
 ```
-
