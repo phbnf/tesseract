@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/trillian/crypto/keys/pem"
 	"github.com/google/trillian/monitoring/opencensus"
 	"github.com/google/trillian/monitoring/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -58,7 +59,7 @@ var (
 	tracing                    = flag.Bool("tracing", false, "If true opencensus Stackdriver tracing will be enabled. See https://opencensus.io/.")
 	tracingProjectID           = flag.String("tracing_project_id", "", "project ID to pass to stackdriver. Can be empty for GCP, consult docs for other platforms.")
 	tracingPercent             = flag.Int("tracing_percent", 0, "Percent of requests to be traced. Zero is a special case to use the DefaultSampler.")
-	dedupPath          = flag.String("dedup_path", "", "Path to the deduplication database.")
+	dedupPath                  = flag.String("dedup_path", "", "Path to the deduplication database.")
 	origin                     = flag.String("origin", "", "Origin of the log, for checkpoints and the monitoring prefix.")
 	projectID                  = flag.String("project_id", "", "GCP ProjectID.")
 	bucket                     = flag.String("bucket", "", "Name of the bucket to store the log in.")
@@ -68,8 +69,8 @@ var (
 	rejectUnexpired            = flag.Bool("reject_unexpired", false, "If true then CTFE rejects certificates that are either currently valid or not yet valid.")
 	extKeyUsages               = flag.String("ext_key_usages", "", "If set, will restrict the set of such usages that the server will accept. By default all are accepted. The values specified must be ones known to the x509 package.")
 	rejectExtensions           = flag.String("reject_extension", "", "A list of X.509 extension OIDs, in dotted string form (e.g. '2.3.4.5') which, if present, should cause submissions to be rejected.")
-	signerPublicKeySecretName  = flag.String("signer_public_key_secret_name", "", "Public key secret name for checkpoints and SCTs signer. Format: projects/{projectId}/secrets/{secretName}/versions/{secretVersion}.")
-	signerPrivateKeySecretName = flag.String("signer_private_key_secret_name", "", "Private key secret name for checkpoints and SCTs signer. Format: projects/{projectId}/secrets/{secretName}/versions/{secretVersion}.")
+	privKey            = flag.String("private_key", "", "Path to a private key .der file. Used to sign checkpoints and SCTs.")
+	privKeyPass        = flag.String("password", "", "private_key password.")
 )
 
 // nolint:staticcheck
@@ -78,9 +79,10 @@ func main() {
 	flag.Parse()
 	ctx := context.Background()
 
-	signer, err := NewSecretManagerSigner(ctx, *signerPublicKeySecretName, *signerPrivateKeySecretName)
+	// TODO(phboneff): move to something else, like KMS
+	signer, err := pem.ReadPrivateKeyFile(*privKey, *privKeyPass)
 	if err != nil {
-		klog.Exitf("Can't create secret manager signer: %v", err)
+		klog.Exitf("Can't open key: %v", err)
 	}
 
 	vCfg, err := sctfe.ValidateLogConfig(*origin, *projectID, *bucket, *spannerDB, *rootsPemFile, *rejectExpired, *rejectUnexpired, *extKeyUsages, *rejectExtensions, notAfterStart.t, notAfterLimit.t, signer)
