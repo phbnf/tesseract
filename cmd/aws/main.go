@@ -212,12 +212,11 @@ func newAWSStorage(ctx context.Context, signer note.Signer) (*sctfe.CTStorage, e
 	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?allowCleartextPasswords=true",
 		*dbUser, "password", dbEndpoint, *dbName,
 	)
-	gcpCfg := awsTessera.Config{
-		ProjectID: *projectID,
+	awsCfg := awsTessera.Config{
 		Bucket:    *bucket,
 		AuroraDSN: dsn,
 	}
-	tesseraStorage, err := awsTessera.New(ctx, gcpCfg, tessera.WithCheckpointSignerVerifier(signer, nil), tessera.WithCTLayout())
+	tesseraStorage, err := awsTessera.New(ctx, awsCfg, tessera.WithCheckpointSigner(signer), tessera.WithCTLayout())
 	if err != nil {
 		return nil, fmt.Errorf("Failed to initialize GCP Tessera storage: %v", err)
 	}
