@@ -230,11 +230,8 @@ func newAWSStorage(ctx context.Context, signer note.Signer) (*sctfe.CTStorage, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize BBolt deduplication database: %v", err)
 	}
-	fetcher, err := awsSCTFE.GetFetcher(ctx, *projectID, *bucket)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get a log fetcher: %v", err)
-	}
-	go dedup.UpdateFromLog(ctx, beDedupStorage, time.Second, fetcher, sctfe.DedupFromBundle)
+
+	go dedup.UpdateFromLog(ctx, beDedupStorage, time.Second, tesseraStorage.ReadCheckpoint, tesseraStorage.ReadEntryBundle, sctfe.DedupFromBundle)
 
 	return sctfe.NewCTSTorage(tesseraStorage, issuerStorage, beDedupStorage)
 }
