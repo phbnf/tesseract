@@ -16,6 +16,7 @@ package aws
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"cloud.google.com/go/spanner"
@@ -25,11 +26,11 @@ import (
 )
 
 // NewDedupeStorage returns a struct which can be used to store identity -> index mappings backed
-// by Spanner.
+// by MySQL.
 //
 // Note that updates to this dedup storage is logically entriely separate from any updates
 // happening to the log storage.
-func NewDedupeStorage(ctx context.Context, spannerDB string) (*DedupStorage, error) {
+func NewDedupeStorage(ctx context.Context, dsn string, maxOpenConns, maxIdleConns int) (*DedupStorage, error) {
 	/*
 	   Schema for reference:
 
@@ -39,13 +40,24 @@ func NewDedupeStorage(ctx context.Context, spannerDB string) (*DedupStorage, err
 	   	 idx INT64 NOT NULL,
 	   	) PRIMARY KEY (id, h);
 	*/
-	dedupDB, err := spanner.NewClient(ctx, spannerDB)
+	dbPool, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Spanner: %v", err)
+		return nil, fmt.Errorf("failed to connect to MySQL db(%q)): %v", dsn, err)
+	}
+
+	if maxOpenConns > 0 {
+		dbPool.SetMaxOpenConns(maxOpenConns)
+	}
+	if maxIdleConns >= 0 {
+		dbPool.SetMaxIdleConns(maxIdleConns)
+	}
+
+	if err := dbPool.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping MySQL db(%q): %v", dsn, err)
 	}
 
 	return &DedupStorage{
-		dbPool: dedupDB,
+		dbPool: dbPool,
 	}, nil
 }
 
