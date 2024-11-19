@@ -41,10 +41,10 @@ type Storage interface {
 	Add(context.Context, *ctonly.Entry) tessera.IndexFuture
 	// AddIssuerChain stores every the chain certificate in a content-addressable store under their sha256 hash.
 	AddIssuerChain(context.Context, []*x509.Certificate) error
-	// AddCertIndex stores the SCTDedupInfo of certificate in a log under its hash.
-	AddCertIndex(context.Context, *x509.Certificate, dedup.SCTDedupInfo) error
-	// GetCertIndex gets the SCTDedupInfo of certificate in a log from its hash.
-	GetCertIndex(context.Context, *x509.Certificate) (dedup.SCTDedupInfo, bool, error)
+	// AddCertDedupInfo stores the SCTDedupInfo of certificate in a log under its hash.
+	AddCertDedupInfo(context.Context, *x509.Certificate, dedup.SCTDedupInfo) error
+	// GetCertDedupInfo gets the SCTDedupInfo of certificate in a log from its hash.
+	GetCertDedupInfo(context.Context, *x509.Certificate) (dedup.SCTDedupInfo, bool, error)
 }
 
 type KV struct {
@@ -131,8 +131,8 @@ func cachedStoreIssuers(s IssuerStorage) func(context.Context, []KV) error {
 	}
 }
 
-// AddCertIndex stores <cert_hash, SCTDEdupInfo> in the deduplication storage.
-func (cts CTStorage) AddCertIndex(ctx context.Context, c *x509.Certificate, sctDedupInfo dedup.SCTDedupInfo) error {
+// AddCertDedupInfo stores <cert_hash, SCTDEdupInfo> in the deduplication storage.
+func (cts CTStorage) AddCertDedupInfo(ctx context.Context, c *x509.Certificate, sctDedupInfo dedup.SCTDedupInfo) error {
 	key := sha256.Sum256(c.Raw)
 	if err := cts.dedupStorage.Add(ctx, []dedup.LeafDedupInfo{{LeafID: key[:], SCTDedupInfo: sctDedupInfo}}); err != nil {
 		return fmt.Errorf("error storing SCTDedupInfo %+v of %q: %v", sctDedupInfo, hex.EncodeToString(key[:]), err)
@@ -140,8 +140,8 @@ func (cts CTStorage) AddCertIndex(ctx context.Context, c *x509.Certificate, sctD
 	return nil
 }
 
-// GetCertIndex fetches the SCTDedupInfo of a given certificate from the deduplication storage.
-func (cts CTStorage) GetCertIndex(ctx context.Context, c *x509.Certificate) (dedup.SCTDedupInfo, bool, error) {
+// GetCertDedupInfo fetches the SCTDedupInfo of a given certificate from the deduplication storage.
+func (cts CTStorage) GetCertDedupInfo(ctx context.Context, c *x509.Certificate) (dedup.SCTDedupInfo, bool, error) {
 	key := sha256.Sum256(c.Raw)
 	sctC, ok, err := cts.dedupStorage.Get(ctx, key[:])
 	if err != nil {

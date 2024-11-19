@@ -320,7 +320,7 @@ func addChainInternal(ctx context.Context, li *logInfo, w http.ResponseWriter, r
 	}
 
 	klog.V(2).Infof("%s: %s => storage.GetCertIndex", li.LogOrigin, method)
-	sctDupInfo, isDup, err := li.storage.GetCertIndex(ctx, chain[0])
+	sctDupInfo, isDup, err := li.storage.GetCertDedupInfo(ctx, chain[0])
 	idx := sctDupInfo.Idx
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("couldn't deduplicate the request: %s", err)
@@ -347,7 +347,7 @@ func addChainInternal(ctx context.Context, li *logInfo, w http.ResponseWriter, r
 		// It might be stored again later, if a local deduplication storage is synced, potentially
 		// with a smaller value.
 		klog.V(2).Infof("%s: %s => storage.AddCertIndex", li.LogOrigin, method)
-		err = li.storage.AddCertIndex(ctx, chain[0], dedup.SCTDedupInfo{Idx: idx, Timestamp: entry.Timestamp})
+		err = li.storage.AddCertDedupInfo(ctx, chain[0], dedup.SCTDedupInfo{Idx: idx, Timestamp: entry.Timestamp})
 		// TODO: block log writes if deduplication breaks
 		if err != nil {
 			klog.Warningf("AddCertIndex(): failed to store certificate index: %v", err)
