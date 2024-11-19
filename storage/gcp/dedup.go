@@ -58,25 +58,25 @@ type DedupStorage struct {
 var _ dedup.BEDedupStorage = &DedupStorage{}
 
 // Get looks up the stored index, if any, for the given identity.
-func (d *DedupStorage) Get(ctx context.Context, i []byte) (dedup.SCTClosure, bool, error) {
+func (d *DedupStorage) Get(ctx context.Context, i []byte) (dedup.SCTDedupInfo, bool, error) {
 	var idx, timestamp int64
 	if row, err := d.dbPool.Single().ReadRow(ctx, "IDSeq", spanner.Key{0, i}, []string{"idx", "timestamp"}); err != nil {
 		if c := spanner.ErrCode(err); c == codes.NotFound {
-			return dedup.SCTClosure{}, false, nil
+			return dedup.SCTDedupInfo{}, false, nil
 		}
-		return dedup.SCTClosure{}, false, err
+		return dedup.SCTDedupInfo{}, false, err
 	} else {
 		if err := row.Columns(&idx, &timestamp); err != nil {
-			return dedup.SCTClosure{}, false, fmt.Errorf("failed to read dedup index: %v", err)
+			return dedup.SCTDedupInfo{}, false, fmt.Errorf("failed to read dedup index: %v", err)
 		}
 		idx := uint64(idx)
 		t := uint64(timestamp)
-		return dedup.SCTClosure{Idx: idx, Timestamp: t}, true, nil
+		return dedup.SCTDedupInfo{Idx: idx, Timestamp: t}, true, nil
 	}
 }
 
 // Add stores associations between the passed-in identities and their indices.
-func (d *DedupStorage) Add(ctx context.Context, entries []dedup.LeafClosure) error {
+func (d *DedupStorage) Add(ctx context.Context, entries []dedup.LeafDedupInfo) error {
 	m := make([]*spanner.MutationGroup, 0, len(entries))
 	for _, e := range entries {
 		m = append(m, &spanner.MutationGroup{

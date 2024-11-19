@@ -15,12 +15,12 @@
 // Package bbolt implements modules/dedup using BBolt.
 //
 // It contains two buckets:
-//   - The dedup bucket stores <leafID, idx> pairs. Entries can either be added after sequencing,
-//     by the server that received the request, or later when synchronising the dedup storage with
-//     the log state.
+//   - The dedup bucket stores <leafID, idx::timestamp> pairs. Entries can either be added after
+//     sequencing, by the server that received the request, or later when synchronising the dedup
+//     storage with the log state.
 //   - The size bucket has a single entry: <"size", X>, where X is the largest contiguous index
 //     from 0 that has been inserted in the dedup bucket. This allows to know what is the next
-//     <leafID, idx> to add to the bucket in order to have a full represation of the log.
+//     <leafID, idx> to add to the bucket in order to have a full picture of the log.
 //
 // Calls to Add<leafID, idx> will update idx to a smaller value, if possible.
 package bbolt
@@ -99,8 +99,8 @@ func NewStorage(path string) (*Storage, error) {
 //
 // If an entry is already stored under a given key, Add only updates it if the new value is smaller.
 // The context is here for consistency with interfaces, but isn't used by BBolt.
-func (s *Storage) Add(_ context.Context, lidxs []dedup.LeafClosure) error {
-	for _, lidx := range lidxs {
+func (s *Storage) Add(_ context.Context, ldis []dedup.LeafDedupInfo) error {
+	for _, ldi := range ldis {
 		err := s.db.Update(func(tx *bolt.Tx) error {
 			db := tx.Bucket([]byte(dedupBucket))
 			sb := tx.Bucket([]byte(sizeBucket))
@@ -110,14 +110,14 @@ func (s *Storage) Add(_ context.Context, lidxs []dedup.LeafClosure) error {
 			}
 			size := btoi(sizeB)
 
-			if old := db.Get(lidx.LeafID); old != nil && btoi(old[:8]) <= lidx.Idx {
-				klog.V(3).Infof("Add(): bucket %q already contains a smaller index %d < %d for entry %q, not updating", dedupBucket, btoi(old[:8]), lidx.Idx, hex.EncodeToString(lidx.LeafID))
-			} else if err := db.Put(lidx.LeafID, append(itob(lidx.Idx), itob(lidx.Timestamp)...)); err != nil {
+			if old := db.Get(ldi.LeafID); old != nil && btoi(old[:8]) <= ldi.Idx {
+				klog.V(3).Infof("Add(): bucket %q already contains a smaller index %d < %d for entry %q, not updating", dedupBucket, btoi(old[:8]), ldi.Idx, hex.EncodeToString(ldi.LeafID))
+			} else if err := db.Put(ldi.LeafID, append(itob(ldi.Idx), itob(ldi.Timestamp)...)); err != nil {
 				return err
 			}
 			// size is a length, lidx.I an index, so if they're equal,
 			// lidx is a new entry.
-			if size == lidx.Idx {
+			if size == ldi.Idx {
 				klog.V(3).Infof("Add(): updating deduped size to %d", size+1)
 				if err := sb.Put([]byte("size"), itob(size+1)); err != nil {
 					return err
@@ -126,7 +126,7 @@ func (s *Storage) Add(_ context.Context, lidxs []dedup.LeafClosure) error {
 			return nil
 		})
 		if err != nil {
-			return fmt.Errorf("b.Put(): error writing leaf index %d: err", lidx.Idx)
+			return fmt.Errorf("b.Put(): error writing leaf index %d: err", ldi.Idx)
 		}
 	}
 	return nil
@@ -136,7 +136,7 @@ func (s *Storage) Add(_ context.Context, lidxs []dedup.LeafClosure) error {
 //
 // If the requested entry is missing from the bucket, returns false ("comma ok" idiom).
 // The context is here for consistency with interfaces, but isn't used by BBolt.
-func (s *Storage) Get(_ context.Context, leafID []byte) (dedup.SCTClosure, bool, error) {
+func (s *Storage) Get(_ context.Context, leafID []byte) (dedup.SCTDedupInfo, bool, error) {
 	var idx []byte
 	_ = s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(dedupBucket))
@@ -148,9 +148,9 @@ func (s *Storage) Get(_ context.Context, leafID []byte) (dedup.SCTClosure, bool,
 		return nil
 	})
 	if idx == nil {
-		return dedup.SCTClosure{}, false, nil
+		return dedup.SCTDedupInfo{}, false, nil
 	}
-	return dedup.SCTClosure{Idx: btoi(idx[:8]), Timestamp: btoi(idx[8:])}, true, nil
+	return dedup.SCTDedupInfo{Idx: btoi(idx[:8]), Timestamp: btoi(idx[8:])}, true, nil
 }
 
 // LogSize reads the latest entry from the size bucket.

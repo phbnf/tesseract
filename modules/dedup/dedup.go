@@ -28,31 +28,31 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// LeafClosure, enables building idempotent deduplicated add-chain responses.
-type LeafClosure struct {
+// LeafDedupInfo, enables building idempotent deduplicated add-chain responses.
+type LeafDedupInfo struct {
 	LeafID []byte
-	SCTClosure
+	SCTDedupInfo
 }
 
-// SCTClosure contains data to build idempotent SCTs.
-type SCTClosure struct {
+// SCTDedupInfo contains data to build idempotent SCTs.
+type SCTDedupInfo struct {
 	Idx       uint64
 	Timestamp uint64
 }
 
 type BEDedupStorage interface {
-	Add(ctx context.Context, lidxs []LeafClosure) error
-	Get(ctx context.Context, leafID []byte) (SCTClosure, bool, error)
+	Add(ctx context.Context, lidxs []LeafDedupInfo) error
+	Get(ctx context.Context, leafID []byte) (SCTDedupInfo, bool, error)
 }
 
 // TODO: re-architecture to prevent creating a LocaLBEDedupStorage without calling UpdateFromLog
 type LocalBEDedupStorage interface {
-	Add(ctx context.Context, lidxs []LeafClosure) error
-	Get(ctx context.Context, leafID []byte) (SCTClosure, bool, error)
+	Add(ctx context.Context, lidxs []LeafDedupInfo) error
+	Get(ctx context.Context, leafID []byte) (SCTDedupInfo, bool, error)
 	LogSize() (uint64, error)
 }
 
-type ParseBundleFunc func([]byte, uint64) ([]LeafClosure, error)
+type ParseBundleFunc func([]byte, uint64) ([]LeafDedupInfo, error)
 
 // UpdateFromLog synchronises a local best effort deduplication storage with a log.
 func UpdateFromLog(ctx context.Context, lds LocalBEDedupStorage, t time.Duration, fcp client.CheckpointFetcherFunc, fb client.EntryBundleFetcherFunc, pb ParseBundleFunc) {
@@ -103,12 +103,12 @@ func sync(ctx context.Context, lds LocalBEDedupStorage, pb ParseBundleFunc, fcp 
 				}
 				return fmt.Errorf("failed to fetch leaf bundle at index %d: %v", i, err)
 			}
-			lidxs, err := pb(eRaw, i)
+			ldis, err := pb(eRaw, i)
 			if err != nil {
 				return fmt.Errorf("parseBundle(): %v", err)
 			}
 
-			if err := lds.Add(ctx, lidxs); err != nil {
+			if err := lds.Add(ctx, ldis); err != nil {
 				return fmt.Errorf("error storing deduplication data for tile %d: %v", i, err)
 			}
 			klog.V(3).Infof("LocalBEDEdup.sync(): stored dedup data for entry bundle %d, %d more bundles to go", i, ckptSize/256-i)
