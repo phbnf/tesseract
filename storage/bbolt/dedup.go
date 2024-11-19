@@ -19,8 +19,8 @@
 //     sequencing, by the server that received the request, or later when synchronising the dedup
 //     storage with the log state.
 //   - The size bucket has a single entry: <"size", X>, where X is the largest contiguous index
-//     from 0 that has been inserted in the dedup bucket. This allows to know what is the next
-//     <leafID, idx> to add to the bucket in order to have a full picture of the log.
+//     from 0 that has been inserted in the dedup bucket. This allows to know at what index
+//     deduplication synchronisation should start in order to have the full picture of a log.
 //
 // Calls to Add<leafID, idx> will update idx to a smaller value, if possible.
 package bbolt
@@ -48,7 +48,8 @@ type Storage struct {
 
 // NewStorage returns a new BBolt storage instance with a dedup and size bucket.
 //
-// The dedup bucket stores <leafID, idx, timestamp> tuples.
+// The dedup bucket stores <leafID, idx::timestamp> pairs, where idx::timestamp is the
+// concatenation of two uint64 bytes.
 // The size bucket has a single entry: <"size", X>, where X is the largest contiguous index from 0
 // that has been inserted in the dedup bucket.
 //
@@ -97,7 +98,7 @@ func NewStorage(path string) (*Storage, error) {
 
 // Add inserts entries in the dedup bucket and updates the size bucket if need be.
 //
-// If an entry is already stored under a given key, Add only updates it if the new value is smaller.
+// If an entry already exists under a key, Add only updates it if the new value idx is smaller.
 // The context is here for consistency with interfaces, but isn't used by BBolt.
 func (s *Storage) Add(_ context.Context, ldis []dedup.LeafDedupInfo) error {
 	for _, ldi := range ldis {

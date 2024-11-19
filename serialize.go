@@ -176,7 +176,7 @@ func NewCpSigner(signer crypto.Signer, origin string, logID [32]byte, timeSource
 	return ctSigner
 }
 
-// DedupFromBundle converts a bundle into an array of dedup.leafClosures.
+// DedupFromBundle converts a bundle into an array of dedup.LeafDedupInfo.
 //
 // The index of a leaf is computed from its position in the log, instead of parsing SCTs.
 // Greatly inspired by https://github.com/FiloSottile/sunlight/blob/main/tile.go
@@ -213,7 +213,8 @@ func DedupFromBundle(bundle []byte, bundleIdx uint64) ([]dedup.LeafDedupInfo, er
 			return nil, fmt.Errorf("invalid data tile: unknown type %d", entryType)
 		}
 		k := sha256.Sum256(crt)
-		kvs = append(kvs, dedup.LeafDedupInfo{LeafID: k[:], SCTDedupInfo: dedup.SCTDedupInfo{Idx: bundleIdx*256 + uint64(len(kvs)), Timestamp: timestamp}})
+		sctDedupInfo := dedup.SCTDedupInfo{Idx: bundleIdx*256 + uint64(len(kvs)), Timestamp: timestamp}
+		kvs = append(kvs, dedup.LeafDedupInfo{LeafID: k[:], SCTDedupInfo: sctDedupInfo})
 	}
 	return kvs, nil
 }

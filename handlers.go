@@ -320,22 +320,22 @@ func addChainInternal(ctx context.Context, li *logInfo, w http.ResponseWriter, r
 	}
 
 	klog.V(2).Infof("%s: %s => storage.GetCertIndex", li.LogOrigin, method)
-	sctC, isDup, err := li.storage.GetCertIndex(ctx, chain[0])
-	idx := sctC.Idx
+	sctDupInfo, isDup, err := li.storage.GetCertIndex(ctx, chain[0])
+	idx := sctDupInfo.Idx
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("couldn't deduplicate the request: %s", err)
 	}
 
 	if isDup {
-		klog.V(3).Infof("%s: %s - found duplicate entry at index %d", li.LogOrigin, method, sctC.Idx)
-		entry.Timestamp = sctC.Timestamp
+		klog.V(3).Infof("%s: %s - found duplicate entry at index %d", li.LogOrigin, method, idx)
+		entry.Timestamp = sctDupInfo.Timestamp
 	} else {
 		if err := li.storage.AddIssuerChain(ctx, chain[1:]); err != nil {
 			return http.StatusInternalServerError, fmt.Errorf("failed to store issuer chain: %s", err)
 		}
 
 		klog.V(2).Infof("%s: %s => storage.Add", li.LogOrigin, method)
-		idx, err := li.storage.Add(ctx, entry)()
+		idx, err = li.storage.Add(ctx, entry)()
 		if err != nil {
 			if errors.Is(err, tessera.ErrPushback) {
 				w.Header().Add("Retry-After", "1")
