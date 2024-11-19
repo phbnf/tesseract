@@ -34,6 +34,7 @@ import (
 	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/certificate-transparency-go/x509util"
 	"github.com/google/trillian/monitoring"
+	"github.com/transparency-dev/static-ct/modules/dedup"
 	tessera "github.com/transparency-dev/trillian-tessera"
 	"github.com/transparency-dev/trillian-tessera/ctonly"
 	"k8s.io/klog/v2"
@@ -319,20 +320,22 @@ func addChainInternal(ctx context.Context, li *logInfo, w http.ResponseWriter, r
 	}
 
 	klog.V(2).Infof("%s: %s => storage.GetCertIndex", li.LogOrigin, method)
-	idx, isDup, err := li.storage.GetCertIndex(ctx, chain[0])
+	sctC, isDup, err := li.storage.GetCertIndex(ctx, chain[0])
+	idx := sctC.Idx
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("couldn't deduplicate the request: %s", err)
 	}
 
 	if isDup {
-		klog.V(3).Infof("%s: %s - found duplicate entry at index %d", li.LogOrigin, method, idx)
+		klog.V(3).Infof("%s: %s - found duplicate entry at index %d", li.LogOrigin, method, sctC.Idx)
+		entry.Timestamp = sctC.Timestamp
 	} else {
 		if err := li.storage.AddIssuerChain(ctx, chain[1:]); err != nil {
 			return http.StatusInternalServerError, fmt.Errorf("failed to store issuer chain: %s", err)
 		}
 
 		klog.V(2).Infof("%s: %s => storage.Add", li.LogOrigin, method)
-		idx, err = li.storage.Add(ctx, entry)()
+		idx, err := li.storage.Add(ctx, entry)()
 		if err != nil {
 			if errors.Is(err, tessera.ErrPushback) {
 				w.Header().Add("Retry-After", "1")
@@ -344,7 +347,7 @@ func addChainInternal(ctx context.Context, li *logInfo, w http.ResponseWriter, r
 		// It might be stored again later, if a local deduplication storage is synced, potentially
 		// with a smaller value.
 		klog.V(2).Infof("%s: %s => storage.AddCertIndex", li.LogOrigin, method)
-		err := li.storage.AddCertIndex(ctx, chain[0], idx)
+		err = li.storage.AddCertIndex(ctx, chain[0], dedup.SCTClosure{Idx: idx, Timestamp: entry.Timestamp})
 		// TODO: block log writes if deduplication breaks
 		if err != nil {
 			klog.Warningf("AddCertIndex(): failed to store certificate index: %v", err)

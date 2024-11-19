@@ -48,13 +48,12 @@ type Storage struct {
 
 // NewStorage returns a new BBolt storage instance with a dedup and size bucket.
 //
-// The dedup bucket stores <leafID, idx> pairs.
+// The dedup bucket stores <leafID, idx, timestamp> tuples.
 // The size bucket has a single entry: <"size", X>, where X is the largest contiguous index from 0
 // that has been inserted in the dedup bucket.
 //
 // If a database already exists at the provided path, NewStorage will load it.
 func NewStorage(path string) (*Storage, error) {
-	// TODO(better logging message)
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return nil, fmt.Errorf("bolt.Open(): %v", err)
@@ -100,7 +99,7 @@ func NewStorage(path string) (*Storage, error) {
 //
 // If an entry is already stored under a given key, Add only updates it if the new value is smaller.
 // The context is here for consistency with interfaces, but isn't used by BBolt.
-func (s *Storage) Add(_ context.Context, lidxs []dedup.LeafIdx) error {
+func (s *Storage) Add(_ context.Context, lidxs []dedup.LeafClosure) error {
 	for _, lidx := range lidxs {
 		err := s.db.Update(func(tx *bolt.Tx) error {
 			db := tx.Bucket([]byte(dedupBucket))
@@ -111,9 +110,9 @@ func (s *Storage) Add(_ context.Context, lidxs []dedup.LeafIdx) error {
 			}
 			size := btoi(sizeB)
 
-			if old := db.Get(lidx.LeafID); old != nil && btoi(old) <= lidx.Idx {
-				klog.V(3).Infof("Add(): bucket %q already contains a smaller index %d < %d for entry %q, not updating", dedupBucket, btoi(old), lidx.Idx, hex.EncodeToString(lidx.LeafID))
-			} else if err := db.Put(lidx.LeafID, itob(lidx.Idx)); err != nil {
+			if old := db.Get(lidx.LeafID); old != nil && btoi(old[:8]) <= lidx.Idx {
+				klog.V(3).Infof("Add(): bucket %q already contains a smaller index %d < %d for entry %q, not updating", dedupBucket, btoi(old[:8]), lidx.Idx, hex.EncodeToString(lidx.LeafID))
+			} else if err := db.Put(lidx.LeafID, append(itob(lidx.Idx), itob(lidx.Timestamp)...)); err != nil {
 				return err
 			}
 			// size is a length, lidx.I an index, so if they're equal,
@@ -137,7 +136,7 @@ func (s *Storage) Add(_ context.Context, lidxs []dedup.LeafIdx) error {
 //
 // If the requested entry is missing from the bucket, returns false ("comma ok" idiom).
 // The context is here for consistency with interfaces, but isn't used by BBolt.
-func (s *Storage) Get(_ context.Context, leafID []byte) (uint64, bool, error) {
+func (s *Storage) Get(_ context.Context, leafID []byte) (dedup.SCTClosure, bool, error) {
 	var idx []byte
 	_ = s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(dedupBucket))
@@ -149,9 +148,9 @@ func (s *Storage) Get(_ context.Context, leafID []byte) (uint64, bool, error) {
 		return nil
 	})
 	if idx == nil {
-		return 0, false, nil
+		return dedup.SCTClosure{}, false, nil
 	}
-	return btoi(idx), true, nil
+	return dedup.SCTClosure{Idx: btoi(idx[:8]), Timestamp: btoi(idx[8:])}, true, nil
 }
 
 // LogSize reads the latest entry from the size bucket.

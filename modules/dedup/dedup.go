@@ -28,25 +28,31 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// LeafIdx holds a LeafID and an Idx for deduplication
-type LeafIdx struct {
+// LeafClosure, enables building idempotent deduplicated add-chain responses.
+type LeafClosure struct {
 	LeafID []byte
-	Idx    uint64
+	SCTClosure
+}
+
+// SCTClosure contains data to build idempotent SCTs.
+type SCTClosure struct {
+	Idx       uint64
+	Timestamp uint64
 }
 
 type BEDedupStorage interface {
-	Add(ctx context.Context, lidxs []LeafIdx) error
-	Get(ctx context.Context, leafID []byte) (uint64, bool, error)
+	Add(ctx context.Context, lidxs []LeafClosure) error
+	Get(ctx context.Context, leafID []byte) (SCTClosure, bool, error)
 }
 
 // TODO: re-architecture to prevent creating a LocaLBEDedupStorage without calling UpdateFromLog
 type LocalBEDedupStorage interface {
-	Add(ctx context.Context, lidxs []LeafIdx) error
-	Get(ctx context.Context, leafID []byte) (uint64, bool, error)
+	Add(ctx context.Context, lidxs []LeafClosure) error
+	Get(ctx context.Context, leafID []byte) (SCTClosure, bool, error)
 	LogSize() (uint64, error)
 }
 
-type ParseBundleFunc func([]byte, uint64) ([]LeafIdx, error)
+type ParseBundleFunc func([]byte, uint64) ([]LeafClosure, error)
 
 // UpdateFromLog synchronises a local best effort deduplication storage with a log.
 func UpdateFromLog(ctx context.Context, lds LocalBEDedupStorage, t time.Duration, fcp client.CheckpointFetcherFunc, fb client.EntryBundleFetcherFunc, pb ParseBundleFunc) {
