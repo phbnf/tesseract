@@ -66,7 +66,7 @@ func (d *DedupStorage) Get(ctx context.Context, i []byte) (dedup.SCTClosure, boo
 		}
 		return dedup.SCTClosure{}, false, err
 	} else {
-		if err := row.Columns(0, &idx, &timestamp); err != nil {
+		if err := row.Columns(&idx, &timestamp); err != nil {
 			return dedup.SCTClosure{}, false, fmt.Errorf("failed to read dedup index: %v", err)
 		}
 		idx := uint64(idx)
@@ -80,7 +80,7 @@ func (d *DedupStorage) Add(ctx context.Context, entries []dedup.LeafClosure) err
 	m := make([]*spanner.MutationGroup, 0, len(entries))
 	for _, e := range entries {
 		m = append(m, &spanner.MutationGroup{
-			Mutations: []*spanner.Mutation{spanner.Insert("IDSeq", []string{"id", "h", "idx"}, []interface{}{0, e.LeafID, int64(e.Idx)})},
+			Mutations: []*spanner.Mutation{spanner.Insert("IDSeq", []string{"id", "h", "idx", "timestamp"}, []interface{}{0, e.LeafID, int64(e.Idx), int64(e.Timestamp)})},
 		})
 	}
 
