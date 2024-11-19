@@ -10,6 +10,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	x509 "github.com/google/certificate-transparency-go/x509"
+	dedup "github.com/transparency-dev/static-ct/modules/dedup"
 	tessera "github.com/transparency-dev/trillian-tessera"
 	ctonly "github.com/transparency-dev/trillian-tessera/ctonly"
 )
@@ -52,7 +53,7 @@ func (mr *MockStorageMockRecorder) Add(arg0, arg1 interface{}) *gomock.Call {
 }
 
 // AddCertIndex mocks base method.
-func (m *MockStorage) AddCertIndex(arg0 context.Context, arg1 *x509.Certificate, arg2 uint64) error {
+func (m *MockStorage) AddCertIndex(arg0 context.Context, arg1 *x509.Certificate, arg2 dedup.SCTDedupInfo) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddCertIndex", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -80,10 +81,10 @@ func (mr *MockStorageMockRecorder) AddIssuerChain(arg0, arg1 interface{}) *gomoc
 }
 
 // GetCertIndex mocks base method.
-func (m *MockStorage) GetCertIndex(arg0 context.Context, arg1 *x509.Certificate) (uint64, bool, error) {
+func (m *MockStorage) GetCertIndex(arg0 context.Context, arg1 *x509.Certificate) (dedup.SCTDedupInfo, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCertIndex", arg0, arg1)
-	ret0, _ := ret[0].(uint64)
+	ret0, _ := ret[0].(dedup.SCTDedupInfo)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
