@@ -105,15 +105,20 @@ func (s *Storage) Add(_ context.Context, ldis []dedup.LeafDedupInfo) error {
 		err := s.db.Update(func(tx *bolt.Tx) error {
 			db := tx.Bucket([]byte(dedupBucket))
 			sb := tx.Bucket([]byte(sizeBucket))
+
 			sizeB := sb.Get([]byte("size"))
 			if sizeB == nil {
 				return fmt.Errorf("can't find log size in bucket %q", sizeBucket)
 			}
 			size := btoi(sizeB)
+			v, err := bvalue(ldi.Idx, ldi.Timestamp)
+			if err != nil {
+				return fmt.Errorf("bvalue(): %v", err)
+			}
 
 			if old := db.Get(ldi.LeafID); old != nil && btoi(old[:8]) <= ldi.Idx {
 				klog.V(3).Infof("Add(): bucket %q already contains a smaller index %d < %d for entry %q, not updating", dedupBucket, btoi(old[:8]), ldi.Idx, hex.EncodeToString(ldi.LeafID))
-			} else if err := db.Put(ldi.LeafID, append(itob(ldi.Idx), itob(ldi.Timestamp)...)); err != nil {
+			} else if err := db.Put(ldi.LeafID, v); err != nil {
 				return err
 			}
 			// size is a length, lidx.I an index, so if they're equal,
@@ -183,4 +188,17 @@ func itob(idx uint64) []byte {
 // btoi converts a byte array to a uint64
 func btoi(b []byte) uint64 {
 	return binary.BigEndian.Uint64(b)
+}
+
+// bvalue concatenates an index and timestamp into a byte array
+func bvalue(idx uint64, timestamp uint64) ([]byte, error) {
+	i := itob(idx)
+	if len(i) > 8 {
+		return nil, fmt.Errorf("input error, idx should fix in %d bytes, got %d", 8, len(i))
+	}
+	t := itob(timestamp)
+	if len(t) > 8 {
+		return nil, fmt.Errorf("input error, idx should fix in %d bytes, got %d", 8, len(t))
+	}
+	return append(itob(idx), itob(timestamp)...), nil
 }
