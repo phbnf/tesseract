@@ -98,7 +98,7 @@ func NewStorage(path string) (*Storage, error) {
 
 // Add inserts entries in the dedup bucket and updates the size bucket if need be.
 //
-// If an entry already exists under a key, Add only updates it if the new value idx is smaller.
+// If an entry already exists under a key, Add only updates the value it if the new idx is smaller.
 // The context is here for consistency with interfaces, but isn't used by BBolt.
 func (s *Storage) Add(_ context.Context, ldis []dedup.LeafDedupInfo) error {
 	for _, ldi := range ldis {
