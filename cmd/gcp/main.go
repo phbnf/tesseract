@@ -101,6 +101,16 @@ func main() {
 	corsHandler := cors.AllowAll().Handler(corsMux)
 	http.Handle("/", corsHandler)
 
+	timeSource := sctfe.SystemTimeSource{}
+	// TODO(phboneff): can I remove the signer from vCfg
+	cpSigner, err := sctfe.NewCpSigner(signer, vCfg.Origin, timeSource)
+	if err != nil {
+		klog.Exitf("failed to create checkpoint Signer: %v", err)
+	}
+	storage, err := newGCPStorage(ctx, cpSigner)
+	if err != nil {
+		klog.Exitf("failed to initiate storage backend: %v", err)
+	}
 	// Register handlers for all the configured logs.
 	opts := sctfe.InstanceOptions{
 		Validated:          vCfg,
@@ -108,7 +118,8 @@ func main() {
 		MetricFactory:      prometheus.MetricFactory{},
 		RequestLog:         new(sctfe.DefaultRequestLog),
 		MaskInternalErrors: *maskInternalErrors,
-		CreateStorage:      newGCPStorage,
+		Storage:            storage,
+		TimeSource:         timeSource,
 	}
 
 	inst, err := sctfe.SetUpInstance(ctx, opts)

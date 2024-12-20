@@ -27,12 +27,7 @@ import (
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/trillian/crypto/keys/pem"
 	"github.com/google/trillian/monitoring"
-	"golang.org/x/mod/sumdb/note"
 )
-
-func fakeCTStorage(_ context.Context, _ note.Signer) (*CTStorage, error) {
-	return &CTStorage{}, nil
-}
 
 func TestSetUpInstance(t *testing.T) {
 	ctx := context.Background()
@@ -52,7 +47,6 @@ func TestSetUpInstance(t *testing.T) {
 		extKeyUsages     string
 		rejectExtensions string
 		signer           crypto.Signer
-		ctStorage        func(context.Context, note.Signer) (*CTStorage, error)
 		wantErr          string
 	}{
 		{
@@ -62,7 +56,6 @@ func TestSetUpInstance(t *testing.T) {
 			bucket:       "bucket",
 			spannerDB:    "spanner",
 			rootsPemFile: "./testdata/fake-ca.cert",
-			ctStorage:    fakeCTStorage,
 			signer:       signer,
 		},
 		{
@@ -72,7 +65,6 @@ func TestSetUpInstance(t *testing.T) {
 			bucket:       "bucket",
 			spannerDB:    "spanner",
 			rootsPemFile: "./testdata/nofile",
-			ctStorage:    fakeCTStorage,
 			wantErr:      "failed to read trusted roots",
 			signer:       signer,
 		},
@@ -82,7 +74,6 @@ func TestSetUpInstance(t *testing.T) {
 			projectID:    "project",
 			bucket:       "bucket",
 			spannerDB:    "spanner",
-			ctStorage:    fakeCTStorage,
 			rootsPemFile: "./testdata/bogus.cert",
 			signer:       signer,
 			wantErr:      "failed to read trusted roots",
@@ -96,7 +87,6 @@ func TestSetUpInstance(t *testing.T) {
 			rootsPemFile: "./testdata/fake-ca.cert",
 			extKeyUsages: "Any",
 			signer:       signer,
-			ctStorage:    fakeCTStorage,
 		},
 		{
 			desc:         "valid-ekus-2",
@@ -107,7 +97,6 @@ func TestSetUpInstance(t *testing.T) {
 			rootsPemFile: "./testdata/fake-ca.cert",
 			extKeyUsages: "Any,ServerAuth,TimeStamping",
 			signer:       signer,
-			ctStorage:    fakeCTStorage,
 		},
 		{
 			desc:             "valid-reject-ext",
@@ -118,7 +107,6 @@ func TestSetUpInstance(t *testing.T) {
 			rootsPemFile:     "./testdata/fake-ca.cert",
 			rejectExtensions: "1.2.3.4,5.6.7.8",
 			signer:           signer,
-			ctStorage:        fakeCTStorage,
 		},
 		{
 			desc:             "invalid-reject-ext",
@@ -126,34 +114,10 @@ func TestSetUpInstance(t *testing.T) {
 			projectID:        "project",
 			bucket:           "bucket",
 			spannerDB:        "spanner",
-			ctStorage:        fakeCTStorage,
 			rootsPemFile:     "./testdata/fake-ca.cert",
 			rejectExtensions: "1.2.3.4,one.banana.two.bananas",
 			signer:           signer,
 			wantErr:          "one",
-		},
-		{
-			desc:         "missing-create-storage",
-			origin:       "log",
-			projectID:    "project",
-			bucket:       "bucket",
-			spannerDB:    "spanner",
-			rootsPemFile: "./testdata/fake-ca.cert",
-			signer:       signer,
-			wantErr:      "failed to initiate storage backend",
-		},
-		{
-			desc:         "failing-create-storage",
-			origin:       "log",
-			projectID:    "project",
-			bucket:       "bucket",
-			spannerDB:    "spanner",
-			rootsPemFile: "./testdata/fake-ca.cert",
-			signer:       signer,
-			ctStorage: func(_ context.Context, _ note.Signer) (*CTStorage, error) {
-				return nil, fmt.Errorf("I failed")
-			},
-			wantErr: "failed to initiate storage backend",
 		},
 	}
 
@@ -163,7 +127,7 @@ func TestSetUpInstance(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ValidateLogConfig(): %v", err)
 			}
-			opts := InstanceOptions{Validated: vCfg, Deadline: time.Second, MetricFactory: monitoring.InertMetricFactory{}, CreateStorage: test.ctStorage}
+			opts := InstanceOptions{Validated: vCfg, Deadline: time.Second, MetricFactory: monitoring.InertMetricFactory{}, Storage: &CTStorage{}}
 
 			if _, err := SetUpInstance(ctx, opts); err != nil {
 				if test.wantErr == "" {
@@ -250,7 +214,7 @@ func TestSetUpInstanceSetsValidationOpts(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ValidateLogConfig(): %v", err)
 			}
-			opts := InstanceOptions{Validated: vCfg, Deadline: time.Second, MetricFactory: monitoring.InertMetricFactory{}, CreateStorage: fakeCTStorage}
+			opts := InstanceOptions{Validated: vCfg, Deadline: time.Second, MetricFactory: monitoring.InertMetricFactory{}, Storage: &CTStorage{}}
 
 			inst, err := SetUpInstance(ctx, opts)
 			if err != nil {
