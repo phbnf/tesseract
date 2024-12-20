@@ -42,6 +42,7 @@ type InstanceOptions struct {
 	// RequestLog provides structured logging of CTFE requests.
 	RequestLog         RequestLog
 	MaskInternalErrors bool
+	TimeSource         TimeSource
 }
 
 // Instance is a set up log/mirror instance. It must be created with the
@@ -85,8 +86,7 @@ func SetUpInstance(ctx context.Context, opts InstanceOptions) (*Instance, error)
 		return nil, fmt.Errorf("failed to parse RejectExtensions: %v", err)
 	}
 
-	timeSource := new(SystemTimeSource)
-	cpSigner, err := NewCpSigner(cfg.Signer, cfg.Origin, timeSource)
+	cpSigner, err := NewCpSigner(cfg.Signer, cfg.Origin, opts.TimeSource)
 
 	if opts.CreateStorage == nil {
 		return nil, fmt.Errorf("failed to initiate storage backend: nil createStorage")
@@ -96,7 +96,7 @@ func SetUpInstance(ctx context.Context, opts InstanceOptions) (*Instance, error)
 		return nil, fmt.Errorf("failed to initiate storage backend: %v", err)
 	}
 
-	logInfo := newLogInfo(opts, validationOpts, cfg.Signer, timeSource, storage)
+	logInfo := newLogInfo(opts, validationOpts, cfg.Signer, opts.TimeSource, storage)
 
 	handlers := logInfo.Handlers(opts.Validated.Origin)
 	return &Instance{Handlers: handlers, li: logInfo}, nil
