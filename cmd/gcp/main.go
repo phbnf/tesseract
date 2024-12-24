@@ -77,6 +77,7 @@ func main() {
 	ctx := context.Background()
 
 	timeSource := sctfe.SystemTimeSource{}
+	// TODO(phboneff): can I create a method just with the signer things? I could put the origin checks in there.
 	signer, err := NewSecretManagerSigner(ctx, *signerPublicKeySecretName, *signerPrivateKeySecretName)
 	if err != nil {
 		klog.Exitf("Can't create secret manager signer: %v", err)
