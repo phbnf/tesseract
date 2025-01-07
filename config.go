@@ -29,6 +29,16 @@ import (
 	"k8s.io/klog/v2"
 )
 
+type CertValidationConfig struct {
+	RootsPemFile     string
+	RejectExpired    bool
+	RejectUnexpired  bool
+	ExtKeyUsages     string
+	RejectExtensions string
+	NotAfterStart    *time.Time
+	NotAfterLimit    *time.Time
+}
+
 // ValidatedLogConfig represents the LogConfig with the information that has
 // been successfully parsed as a result of validating it.
 type ValidatedLogConfig struct {
@@ -49,17 +59,16 @@ type ValidatedLogConfig struct {
 //   - Merge delays (if present) are correct.
 //
 // Returns the validated structures (useful to avoid double validation).
-func ValidateLogConfig(origin string, rootsPemFile string, rejectExpired bool, rejectUnexpired bool, extKeyUsages string, rejectExtensions string, notAfterStart *time.Time, notAfterLimit *time.Time, signer crypto.Signer) (*ValidatedLogConfig, error) {
+func ValidateLogConfig(cfg CertValidationConfig, origin string, signer crypto.Signer) (*ValidatedLogConfig, error) {
 	if origin == "" {
 		return nil, errors.New("empty origin")
 	}
-
 	// Load the trusted roots.
-	if rootsPemFile == "" {
+	if cfg.rootsPemFile == "" {
 		return nil, errors.New("empty rootsPemFile")
 	}
 	roots := x509util.NewPEMCertPool()
-	if err := roots.AppendCertsFromPEMFile(rootsPemFile); err != nil {
+	if err := roots.AppendCertsFromPEMFile(cfg.RootsPemFile); err != nil {
 		return nil, fmt.Errorf("failed to read trusted roots: %v", err)
 	}
 
@@ -74,27 +83,27 @@ func ValidateLogConfig(origin string, rootsPemFile string, rejectExpired bool, r
 		return nil, fmt.Errorf("unsupported key type: %v", keyType)
 	}
 
-	if rejectExpired && rejectUnexpired {
+	if cfg.RejectExpired && cfg.RejectUnexpired {
 		return nil, errors.New("rejecting all certificates")
 	}
 
 	// Validate the time interval.
-	if notAfterStart != nil && notAfterLimit != nil && (notAfterLimit).Before(*notAfterStart) {
+	if cfg.NotAfterStart != nil && cfg.NotAfterLimit != nil && (cfg.NotAfterLimit).Before(*cfg.NotAfterStart) {
 		return nil, errors.New("limit before start")
 	}
 
 	validationOpts := CertValidationOpts{
 		trustedRoots:    roots,
-		rejectExpired:   rejectExpired,
-		rejectUnexpired: rejectUnexpired,
-		notAfterStart:   notAfterStart,
-		notAfterLimit:   notAfterLimit,
+		rejectExpired:   cfg.RejectExpired,
+		rejectUnexpired: cfg.RejectUnexpired,
+		notAfterStart:   cfg.NotAfterStart,
+		notAfterLimit:   cfg.NotAfterLimit,
 	}
 
 	// Filter which extended key usages are allowed.
 	lExtKeyUsages := []string{}
-	if extKeyUsages != "" {
-		lExtKeyUsages = strings.Split(extKeyUsages, ",")
+	if cfg.ExtKeyUsages != "" {
+		lExtKeyUsages = strings.Split(cfg.ExtKeyUsages, ",")
 	}
 	// Validate the extended key usages list.
 	for _, kuStr := range lExtKeyUsages {
@@ -114,8 +123,8 @@ func ValidateLogConfig(origin string, rootsPemFile string, rejectExpired bool, r
 	// Filter which extensions are rejected.
 	var err error
 	lRejectExtensions := []string{}
-	if rejectExtensions != "" {
-		lRejectExtensions = strings.Split(rejectExtensions, ",")
+	if cfg.RejectExtensions != "" {
+		lRejectExtensions = strings.Split(cfg.RejectExtensions, ",")
 		validationOpts.rejectExtIds, err = parseOIDs(lRejectExtensions)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse RejectExtensions: %v", err)
