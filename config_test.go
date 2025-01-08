@@ -23,204 +23,160 @@ import (
 	"github.com/google/trillian/crypto/keys/pem"
 )
 
-func TestValidateLogConfig(t *testing.T) {
-	signer, err := pem.ReadPrivateKeyFile("./testdata/ct-http-server.privkey.pem", "dirk")
-	if err != nil {
-		t.Fatalf("Can't open key: %v", err)
-	}
-
+func TestNewCertValidationOpts(t *testing.T) {
 	t100 := time.Unix(100, 0)
 	t200 := time.Unix(200, 0)
 
 	for _, tc := range []struct {
-		desc      string
-		origin    string
-		projectID string
-		bucket    string
-		spannerDB string
-		wantErr   string
-		cvcfg     CertValidationConfig
-		signer    crypto.Signer
+		desc    string
+		wantErr string
+		cvcfg   CertValidationConfig
 	}{
 		{
-			desc:      "empty-origin",
-			wantErr:   "empty origin",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc:    "empty-rootsPemFile",
+			wantErr: "empty rootsPemFile",
 		},
 		{
-			desc:      "empty-rootsPemFile",
-			wantErr:   "empty rootsPemFile",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
-			signer:    signer,
+			desc:    "missing-root-cert",
+			wantErr: "failed to read trusted roots",
+			cvcfg:   CertValidationConfig{RootsPemFile: "./testdata/bogus.cert"},
 		},
 		{
-			desc:      "missing-root-cert",
-			wantErr:   "failed to read trusted roots",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
-			cvcfg:     CertValidationConfig{RootsPemFile: "./testdata/bogus.cert"},
-			signer:    signer,
-		},
-		{
-			desc:      "rejecting-all",
-			wantErr:   "rejecting all certificates",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc:    "rejecting-all",
+			wantErr: "rejecting all certificates",
 			cvcfg: CertValidationConfig{
 				RootsPemFile:    "./testdata/fake-ca.cert",
 				RejectExpired:   true,
 				RejectUnexpired: true},
-			signer: signer,
 		},
 		{
-			desc:      "unknown-ext-key-usage-1",
-			wantErr:   "unknown extended key usage",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc:    "unknown-ext-key-usage-1",
+			wantErr: "unknown extended key usage",
 			cvcfg: CertValidationConfig{
 				RootsPemFile: "./testdata/fake-ca.cert",
 				ExtKeyUsages: "wrong_usage"},
-			signer: signer,
 		},
 		{
-			desc:      "unknown-ext-key-usage-2",
-			wantErr:   "unknown extended key usage",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc:    "unknown-ext-key-usage-2",
+			wantErr: "unknown extended key usage",
 			cvcfg: CertValidationConfig{
 				RootsPemFile: "./testdata/fake-ca.cert",
 				ExtKeyUsages: "ClientAuth,ServerAuth,TimeStomping",
 			},
-			signer: signer,
 		},
 		{
-			desc:      "unknown-ext-key-usage-3",
-			wantErr:   "unknown extended key usage",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc:    "unknown-ext-key-usage-3",
+			wantErr: "unknown extended key usage",
 			cvcfg: CertValidationConfig{
 				RootsPemFile: "./testdata/fake-ca.cert",
 				ExtKeyUsages: "Any ",
 			},
-			signer: signer,
 		},
 		{
-			desc:      "unknown-reject-ext",
-			wantErr:   "failed to parse RejectExtensions",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc:    "unknown-reject-ext",
+			wantErr: "failed to parse RejectExtensions",
 			cvcfg: CertValidationConfig{
 				RootsPemFile:     "./testdata/fake-ca.cert",
 				RejectExtensions: "1.2.3.4,one.banana.two.bananas",
 			},
-			signer: signer,
 		},
 		{
-			desc:      "limit-before-start",
-			wantErr:   "limit before start",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc:    "limit-before-start",
+			wantErr: "limit before start",
 			cvcfg: CertValidationConfig{
 				RootsPemFile:  "./testdata/fake-ca.cert",
 				NotAfterStart: &t200,
 				NotAfterLimit: &t100,
 			},
-			signer: signer,
 		},
 		{
-			desc:      "ok",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc: "ok",
 			cvcfg: CertValidationConfig{
 				RootsPemFile: "./testdata/fake-ca.cert",
 			},
-			signer: signer,
 		},
 		{
-			desc:      "ok-ext-key-usages",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc: "ok-ext-key-usages",
 			cvcfg: CertValidationConfig{
 				RootsPemFile: "./testdata/fake-ca.cert",
 				ExtKeyUsages: "ServerAuth,ClientAuth,OCSPSigning",
 			},
-			signer: signer,
 		},
 		{
-			desc:      "ok-reject-ext",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc: "ok-reject-ext",
 			cvcfg: CertValidationConfig{
 				RootsPemFile:     "./testdata/fake-ca.cert",
 				RejectExtensions: "1.2.3.4,5.6.7.8",
 			},
-			signer: signer,
 		},
 		{
-			desc:      "ok-start-timestamp",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc: "ok-start-timestamp",
 			cvcfg: CertValidationConfig{
 				RootsPemFile:  "./testdata/fake-ca.cert",
 				NotAfterStart: &t100,
 			},
-			signer: signer,
 		},
 		{
-			desc:      "ok-limit-timestamp",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc: "ok-limit-timestamp",
 			cvcfg: CertValidationConfig{
 				RootsPemFile:  "./testdata/fake-ca.cert",
 				NotAfterStart: &t200,
 			},
-			signer: signer,
 		},
 		{
-			desc:      "ok-range-timestamp",
-			origin:    "testlog",
-			projectID: "project",
-			bucket:    "bucket",
-			spannerDB: "spanner",
+			desc: "ok-range-timestamp",
 			cvcfg: CertValidationConfig{
 				RootsPemFile:  "./testdata/fake-ca.cert",
 				NotAfterStart: &t100,
 				NotAfterLimit: &t200,
 			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			vc, err := newCertValidationOpts(tc.cvcfg)
+			if len(tc.wantErr) == 0 && err != nil {
+				t.Errorf("ValidateLogConfig()=%v, want nil", err)
+			}
+			if len(tc.wantErr) > 0 && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {
+				t.Errorf("ValidateLogConfig()=%v, want err containing %q", err, tc.wantErr)
+			}
+			if err == nil && vc == nil {
+				t.Error("err and ValidatedLogConfig are both nil")
+			}
+			// TODO(pavelkalinnikov): Test that ValidatedLogConfig is correct.
+		})
+	}
+}
+
+func TestNew(t *testing.T) {
+	signer, err := pem.ReadPrivateKeyFile("./testdata/ct-http-server.privkey.pem", "dirk")
+	if err != nil {
+		t.Fatalf("Can't open key: %v", err)
+	}
+
+	for _, tc := range []struct {
+		desc    string
+		origin  string
+		wantErr string
+		cvcfg   CertValidationConfig
+		signer  crypto.Signer
+	}{
+		{
+			desc:    "empty-origin",
+			wantErr: "empty origin",
+		},
+		// TODO(phboneff): add a test for a signer of the wrong type
+		{
+			desc:   "ok",
+			origin: "testlog",
+			cvcfg: CertValidationConfig{
+				RootsPemFile: "./testdata/fake-ca.cert",
+			},
 			signer: signer,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			vc, err := ValidateLogConfig(tc.cvcfg, tc.origin, signer)
+			vc, err := New(tc.origin, tc.signer, tc.cvcfg)
 			if len(tc.wantErr) == 0 && err != nil {
 				t.Errorf("ValidateLogConfig()=%v, want nil", err)
 			}

@@ -52,25 +52,13 @@ type ValidatedLogConfig struct {
 	CertValidationOpts CertValidationOpts
 }
 
-// ValidateLogConfig checks that a single log config is valid. In particular:
-//   - A log has a private, and optionally a public key (both valid).
-//   - Each of NotBeforeStart and NotBeforeLimit, if set, is a valid timestamp
-//     proto. If both are set then NotBeforeStart <= NotBeforeLimit.
-//   - Merge delays (if present) are correct.
-//
-// Returns the validated structures (useful to avoid double validation).
-func ValidateLogConfig(cfg CertValidationConfig, origin string, signer crypto.Signer) (*ValidatedLogConfig, error) {
+func New(origin string, signer crypto.Signer, cfg CertValidationConfig) (*ValidatedLogConfig, error) {
+	vCfg := &ValidatedLogConfig{}
+
 	if origin == "" {
 		return nil, errors.New("empty origin")
 	}
-	// Load the trusted roots.
-	if cfg.rootsPemFile == "" {
-		return nil, errors.New("empty rootsPemFile")
-	}
-	roots := x509util.NewPEMCertPool()
-	if err := roots.AppendCertsFromPEMFile(cfg.RootsPemFile); err != nil {
-		return nil, fmt.Errorf("failed to read trusted roots: %v", err)
-	}
+	vCfg.Origin = origin
 
 	// Validate signer that only ECDSA is supported.
 	// TODO(phboneff): if this is a library this should also allow RSA as per RFC6962.
@@ -81,6 +69,28 @@ func ValidateLogConfig(cfg CertValidationConfig, origin string, signer crypto.Si
 	case *ecdsa.PublicKey:
 	default:
 		return nil, fmt.Errorf("unsupported key type: %v", keyType)
+	}
+	vCfg.Signer = signer
+
+	vlc, err := newCertValidationOpts(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cert validation config: %v", err)
+	}
+	vCfg.CertValidationOpts = *vlc
+
+	return vCfg, nil
+}
+
+// newCertValidationOpts checks that a log validation config is valid,
+// parses it and loads necessary resources.
+func newCertValidationOpts(cfg CertValidationConfig) (*CertValidationOpts, error) {
+	// Load the trusted roots.
+	if len(cfg.RootsPemFile) == 0 {
+		return nil, errors.New("empty rootsPemFile")
+	}
+	roots := x509util.NewPEMCertPool()
+	if err := roots.AppendCertsFromPEMFile(cfg.RootsPemFile); err != nil {
+		return nil, fmt.Errorf("failed to read trusted roots: %v", err)
 	}
 
 	if cfg.RejectExpired && cfg.RejectUnexpired {
@@ -111,7 +121,7 @@ func ValidateLogConfig(cfg CertValidationConfig, origin string, signer crypto.Si
 			// If "Any" is specified, then we can ignore the entire list and
 			// just disable EKU checking.
 			if ku == x509.ExtKeyUsageAny {
-				klog.Infof("%s: Found ExtKeyUsageAny, allowing all EKUs", origin)
+				klog.Info("Found ExtKeyUsageAny, allowing all EKUs")
 				validationOpts.extKeyUsages = nil
 				break
 			}
@@ -131,13 +141,7 @@ func ValidateLogConfig(cfg CertValidationConfig, origin string, signer crypto.Si
 		}
 	}
 
-	vCfg := ValidatedLogConfig{
-		Origin:             origin,
-		Signer:             signer,
-		CertValidationOpts: validationOpts,
-	}
-
-	return &vCfg, nil
+	return &validationOpts, nil
 }
 
 func parseOIDs(oids []string) ([]asn1.ObjectIdentifier, error) {
