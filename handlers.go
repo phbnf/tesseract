@@ -186,32 +186,27 @@ type InstanceOptions struct {
 // newLogInfo creates a new instance of logInfo.
 func newLogInfo(
 	instanceOpts InstanceOptions,
-	validationOpts CertValidationOpts,
-	signSCT signSCT,
-	timeSource TimeSource,
-	storage Storage,
-	origin string,
+	log Log,
 ) *logInfo {
 	li := &logInfo{
-		Origin:             origin,
-		storage:            storage,
-		signSCT:            signSCT,
-		TimeSource:         timeSource,
+		Origin:             log.Origin,
+		storage:            log.Storage,
+		signSCT:            log.signSCT,
+		TimeSource:         instanceOpts.TimeSource,
 		maskInternalErrors: instanceOpts.MaskInternalErrors,
 		deadline:           instanceOpts.Deadline,
-		validationOpts:     validationOpts,
+		validationOpts:     log.CertValidationOpts,
 		RequestLog:         instanceOpts.RequestLog,
 	}
 
 	once.Do(func() { setupMetrics(instanceOpts.MetricFactory) })
-	knownLogs.Set(1.0, origin)
+	knownLogs.Set(1.0, log.Origin)
 
 	return li
 }
 
 func NewPathHandlers(opts InstanceOptions, log Log) PathHandlers {
-	// TODO(phboneff): simplify signature of newLogInfo
-	logInfo := newLogInfo(opts, log.CertValidationOpts, log.signSCT, opts.TimeSource, log.Storage, log.Origin)
+	logInfo := newLogInfo(opts, log)
 	return logInfo.Handlers(log.Origin)
 }
 

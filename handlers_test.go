@@ -76,11 +76,22 @@ func setupTest(t *testing.T, pemRoots []string, signer crypto.Signer) handlerTes
 		rejectExpired: false,
 	}
 
-	iOpts := InstanceOptions{Deadline: time.Millisecond * 500, MetricFactory: monitoring.InertMetricFactory{}, RequestLog: new(DefaultRequestLog)}
+	iOpts := InstanceOptions{
+		Deadline:      time.Millisecond * 500,
+		MetricFactory: monitoring.InertMetricFactory{},
+		RequestLog:    new(DefaultRequestLog),
+		TimeSource:    fakeTimeSource,
+	}
 	signSCT := func(leaf *ct.MerkleTreeLeaf) (*ct.SignedCertificateTimestamp, error) {
 		return buildV1SCT(signer, leaf)
 	}
-	info.li = newLogInfo(iOpts, vOpts, signSCT, fakeTimeSource, info.storage, "example.com")
+	log := Log{
+		Storage:            info.storage,
+		signSCT:            signSCT,
+		Origin:             "example.com",
+		CertValidationOpts: vOpts,
+	}
+	info.li = newLogInfo(iOpts, log)
 
 	for _, pemRoot := range pemRoots {
 		if !info.roots.AppendCertsFromPEM([]byte(pemRoot)) {
