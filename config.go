@@ -15,6 +15,7 @@
 package sctfe
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"errors"
@@ -23,9 +24,11 @@ import (
 	"strings"
 	"time"
 
+	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/asn1"
 	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/certificate-transparency-go/x509util"
+	"golang.org/x/mod/sumdb/note"
 	"k8s.io/klog/v2"
 )
 
@@ -39,26 +42,33 @@ type CertValidationConfig struct {
 	NotAfterLimit    *time.Time
 }
 
-// ValidatedLogConfig represents the LogConfig with the information that has
-// been successfully parsed as a result of validating it.
-type ValidatedLogConfig struct {
+type signSCT func(leaf *ct.MerkleTreeLeaf) (*ct.SignedCertificateTimestamp, error)
+
+// CreateStorage instantiates a Tessera storage implementation with a signer option.
+type CreateStorage func(context.Context, note.Signer) (*CTStorage, error)
+
+// Log implements all the primitives necessary to run a static-ct-api log.
+type Log struct {
 	// Origin identifies the log. It will be used in its checkpoint, and
 	// is also its submission prefix, as per https://c2sp.org/static-ct-api.
+	// TODO(phboneff): check if I can remove this
 	Origin string
-	// Used to sign the checkpoint and SCTs.
-	Signer crypto.Signer
+	// Signs SCTs.
+	signSCT signSCT
 	// CertValidationOpts contains various parameters for certificate chain
 	// validation.
 	CertValidationOpts CertValidationOpts
+	// Storage stores certificate data.
+	Storage Storage
 }
 
-func New(origin string, signer crypto.Signer, cfg CertValidationConfig) (*ValidatedLogConfig, error) {
-	vCfg := &ValidatedLogConfig{}
+func NewLog(ctx context.Context, origin string, signer crypto.Signer, cfg CertValidationConfig, ts TimeSource, cs CreateStorage) (*Log, error) {
+	log := &Log{}
 
 	if origin == "" {
 		return nil, errors.New("empty origin")
 	}
-	vCfg.Origin = origin
+	log.Origin = origin
 
 	// Validate signer that only ECDSA is supported.
 	// TODO(phboneff): if this is a library this should also allow RSA as per RFC6962.
@@ -70,20 +80,35 @@ func New(origin string, signer crypto.Signer, cfg CertValidationConfig) (*Valida
 	default:
 		return nil, fmt.Errorf("unsupported key type: %v", keyType)
 	}
-	vCfg.Signer = signer
 
-	vlc, err := newCertValidationOpts(cfg)
+	log.signSCT = func(leaf *ct.MerkleTreeLeaf) (*ct.SignedCertificateTimestamp, error) {
+		return buildV1SCT(signer, leaf)
+	}
+
+	vlc, err := NewCertValidationOpts(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("invalid cert validation config: %v", err)
 	}
-	vCfg.CertValidationOpts = *vlc
+	log.CertValidationOpts = *vlc
 
-	return vCfg, nil
+	// TODO(phboneff): can I remove the signer from vCfg
+	cpSigner, err := NewCpSigner(signer, origin, ts)
+	if err != nil {
+		klog.Exitf("failed to create checkpoint Signer: %v", err)
+	}
+
+	storage, err := cs(ctx, cpSigner)
+	if err != nil {
+		klog.Exitf("failed to initiate storage backend: %v", err)
+	}
+	log.Storage = storage
+
+	return log, nil
 }
 
-// newCertValidationOpts checks that a log validation config is valid,
+// NewCertValidationOpts checks that a log validation config is valid,
 // parses it and loads necessary resources.
-func newCertValidationOpts(cfg CertValidationConfig) (*CertValidationOpts, error) {
+func NewCertValidationOpts(cfg CertValidationConfig) (*CertValidationOpts, error) {
 	// Load the trusted roots.
 	if len(cfg.RootsPemFile) == 0 {
 		return nil, errors.New("empty rootsPemFile")

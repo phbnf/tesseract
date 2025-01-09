@@ -15,12 +15,14 @@
 package sctfe
 
 import (
+	"context"
 	"crypto"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/trillian/crypto/keys/pem"
+	"golang.org/x/mod/sumdb/note"
 )
 
 func TestNewCertValidationOpts(t *testing.T) {
@@ -133,7 +135,7 @@ func TestNewCertValidationOpts(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			vc, err := newCertValidationOpts(tc.cvcfg)
+			vc, err := NewCertValidationOpts(tc.cvcfg)
 			if len(tc.wantErr) == 0 && err != nil {
 				t.Errorf("ValidateLogConfig()=%v, want nil", err)
 			}
@@ -148,7 +150,8 @@ func TestNewCertValidationOpts(t *testing.T) {
 	}
 }
 
-func TestNew(t *testing.T) {
+func TestNewLog(t *testing.T) {
+	ctx := context.Background()
 	signer, err := pem.ReadPrivateKeyFile("./testdata/ct-http-server.privkey.pem", "dirk")
 	if err != nil {
 		t.Fatalf("Can't open key: %v", err)
@@ -176,7 +179,7 @@ func TestNew(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			vc, err := New(tc.origin, tc.signer, tc.cvcfg)
+			vc, err := NewLog(ctx, tc.origin, tc.signer, tc.cvcfg, SystemTimeSource{}, newStorage)
 			if len(tc.wantErr) == 0 && err != nil {
 				t.Errorf("ValidateLogConfig()=%v, want nil", err)
 			}
@@ -189,4 +192,9 @@ func TestNew(t *testing.T) {
 			// TODO(pavelkalinnikov): Test that ValidatedLogConfig is correct.
 		})
 	}
+}
+
+// TODO(phboneff): implement a mock storage
+func newStorage(ctx context.Context, signer note.Signer) (*CTStorage, error) {
+	return &CTStorage{}, nil
 }
