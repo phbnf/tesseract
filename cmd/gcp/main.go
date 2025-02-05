@@ -29,10 +29,10 @@ import (
 	"time"
 
 	"github.com/google/trillian/monitoring/opencensus"
-	"github.com/google/trillian/monitoring/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 	sctfe "github.com/transparency-dev/static-ct"
+	"github.com/transparency-dev/static-ct/storage"
 	gcpSCTFE "github.com/transparency-dev/static-ct/storage/gcp"
 	tessera "github.com/transparency-dev/trillian-tessera"
 	gcpTessera "github.com/transparency-dev/trillian-tessera/storage/gcp"
@@ -76,7 +76,6 @@ func main() {
 	flag.Parse()
 	ctx := context.Background()
 
-	timeSource := SystemTimeSource{}
 	signer, err := NewSecretManagerSigner(ctx, *signerPublicKeySecretName, *signerPrivateKeySecretName)
 	if err != nil {
 		klog.Exitf("Can't create secret manager signer: %v", err)
@@ -92,20 +91,12 @@ func main() {
 		NotAfterLimit:    notAfterLimit.t,
 	}
 
-	log, err := sctfe.NewLog(ctx, *origin, signer, chainValidationConfig, timeSource, newGCPStorage)
+	log, err := sctfe.NewLog(ctx, *origin, signer, chainValidationConfig, newGCPStorage)
 	if err != nil {
 		klog.Exitf("Invalid log config: %v", err)
 	}
 
-	opts := &sctfe.HandlerOptions{
-		Deadline:           *httpDeadline,
-		MetricFactory:      prometheus.MetricFactory{},
-		RequestLog:         &sctfe.DefaultRequestLog{},
-		MaskInternalErrors: *maskInternalErrors,
-		TimeSource:         timeSource,
-	}
-
-	handlers := sctfe.NewPathHandlers(opts, log)
+	handlers := sctfe.NewPathHandlers(*httpDeadline, *maskInternalErrors, log)
 
 	klog.CopyStandardLogTo("WARNING")
 	klog.Info("**** CT HTTP Server Starting ****")
@@ -208,7 +199,7 @@ func awaitSignal(doneFn func()) {
 	doneFn()
 }
 
-func newGCPStorage(ctx context.Context, signer note.Signer) (*sctfe.CTStorage, error) {
+func newGCPStorage(ctx context.Context, signer note.Signer) (*storage.CTStorage, error) {
 	if *bucket == "" {
 		return nil, errors.New("missing bucket")
 	}
@@ -237,7 +228,7 @@ func newGCPStorage(ctx context.Context, signer note.Signer) (*sctfe.CTStorage, e
 		return nil, fmt.Errorf("failed to initialize GCP Spanner deduplication database: %v", err)
 	}
 
-	return sctfe.NewCTSTorage(tesseraStorage, issuerStorage, beDedupStorage)
+	return storage.NewCTStorage(tesseraStorage, issuerStorage, beDedupStorage)
 }
 
 type timestampFlag struct {
@@ -261,12 +252,4 @@ func (t *timestampFlag) Set(w string) error {
 	}
 	t.t = &tt
 	return nil
-}
-
-// SystemTimeSource provides the current system local time
-type SystemTimeSource struct{}
-
-// Now returns the true current local time.
-func (s SystemTimeSource) Now() time.Time {
-	return time.Now()
 }

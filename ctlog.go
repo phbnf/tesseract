@@ -28,7 +28,8 @@ import (
 	"github.com/google/certificate-transparency-go/asn1"
 	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/certificate-transparency-go/x509util"
-	"github.com/transparency-dev/static-ct/internal/sctfi"
+	"github.com/transparency-dev/static-ct/internal/scti"
+	"github.com/transparency-dev/static-ct/storage"
 	"golang.org/x/mod/sumdb/note"
 	"k8s.io/klog/v2"
 )
@@ -66,30 +67,25 @@ type ChainValidationConfig struct {
 }
 
 // CreateStorage instantiates a Tessera storage implementation with a signer option.
-type CreateStorage func(context.Context, note.Signer) (*CTStorage, error)
+type CreateStorage func(context.Context, note.Signer) (*storage.CTStorage, error)
 
-// log offers all the primitives necessary to run a static-ct-api log.
-// TODO(phboneff): consider moving to methods when refactoring logInfo.
-type log struct {
-	// origin identifies the log. It will be used in its checkpoint, and
-	// is also its submission prefix, as per https://c2sp.org/static-ct-api.
-	origin string
-	// signSCT Signs SCTs.
-	signSCT sctfi.SignSCT
-	// chainValidationOpts contains various parameters for certificate chain
-	// validation.
-	chainValidationOpts sctfi.chainValidationOpts
-	// storage stores certificate data.
-	storage Storage
+// systemTimeSource implments scti.TimeSource.
+type systemTimeSource struct{}
+
+// Now returns the true current local time.
+func (s systemTimeSource) Now() time.Time {
+	return time.Now()
 }
 
-func NewLog(ctx context.Context, origin string, signer crypto.Signer, cfg ChainValidationConfig, ts timeSource, cs CreateStorage) (*log, error) {
-	log := &log{}
+var timeSource = systemTimeSource{}
+
+func NewLog(ctx context.Context, origin string, signer crypto.Signer, cfg ChainValidationConfig, cs CreateStorage) (*scti.Log, error) {
+	log := &scti.Log{}
 
 	if origin == "" {
 		return nil, errors.New("empty origin")
 	}
-	log.origin = origin
+	log.Origin = origin
 
 	// Validate signer that only ECDSA is supported.
 	if signer == nil {
@@ -101,17 +97,17 @@ func NewLog(ctx context.Context, origin string, signer crypto.Signer, cfg ChainV
 		return nil, fmt.Errorf("unsupported key type: %v", keyType)
 	}
 
-	log.signSCT = func(leaf *ct.MerkleTreeLeaf) (*ct.SignedCertificateTimestamp, error) {
-		return sign.BuildV1SCT(signer, leaf)
+	log.SignSCT = func(leaf *ct.MerkleTreeLeaf) (*ct.SignedCertificateTimestamp, error) {
+		return scti.BuildV1SCT(signer, leaf)
 	}
 
 	vlc, err := newCertValidationOpts(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("invalid cert validation config: %v", err)
 	}
-	log.chainValidationOpts = *vlc
+	log.ChainValidationOpts = *vlc
 
-	cpSigner, err := sign.NewCpSigner(signer, origin, ts)
+	cpSigner, err := scti.NewCpSigner(signer, origin, timeSource)
 	if err != nil {
 		klog.Exitf("failed to create checkpoint Signer: %v", err)
 	}
@@ -120,14 +116,14 @@ func NewLog(ctx context.Context, origin string, signer crypto.Signer, cfg ChainV
 	if err != nil {
 		klog.Exitf("failed to initiate storage backend: %v", err)
 	}
-	log.storage = storage
+	log.Storage = storage
 
 	return log, nil
 }
 
 // newCertValidationOpts checks that a chain validation config is valid,
 // parses it, and loads resources to validate chains.
-func newCertValidationOpts(cfg ChainValidationConfig) (*chainValidationOpts, error) {
+func newCertValidationOpts(cfg ChainValidationConfig) (*scti.ChainValidationOpts, error) {
 	// Load the trusted roots.
 	if cfg.RootsPEMFile == "" {
 		return nil, errors.New("empty rootsPemFile")
@@ -146,12 +142,12 @@ func newCertValidationOpts(cfg ChainValidationConfig) (*chainValidationOpts, err
 		return nil, fmt.Errorf("'Not After' limit %q before start %q", cfg.NotAfterLimit.Format(time.RFC3339), cfg.NotAfterStart.Format(time.RFC3339))
 	}
 
-	validationOpts := chainValidationOpts{
-		trustedRoots:    roots,
-		rejectExpired:   cfg.RejectExpired,
-		rejectUnexpired: cfg.RejectUnexpired,
-		notAfterStart:   cfg.NotAfterStart,
-		notAfterLimit:   cfg.NotAfterLimit,
+	validationOpts := scti.ChainValidationOpts{
+		TrustedRoots:    roots,
+		RejectExpired:   cfg.RejectExpired,
+		RejectUnexpired: cfg.RejectUnexpired,
+		NotAfterStart:   cfg.NotAfterStart,
+		NotAfterLimit:   cfg.NotAfterLimit,
 	}
 
 	// Filter which extended key usages are allowed.
@@ -166,10 +162,10 @@ func newCertValidationOpts(cfg ChainValidationConfig) (*chainValidationOpts, err
 			// just disable EKU checking.
 			if ku == x509.ExtKeyUsageAny {
 				klog.Info("Found ExtKeyUsageAny, allowing all EKUs")
-				validationOpts.extKeyUsages = nil
+				validationOpts.ExtKeyUsages = nil
 				break
 			}
-			validationOpts.extKeyUsages = append(validationOpts.extKeyUsages, ku)
+			validationOpts.ExtKeyUsages = append(validationOpts.ExtKeyUsages, ku)
 		} else {
 			return nil, fmt.Errorf("unknown extended key usage: %s", kuStr)
 		}
@@ -178,7 +174,7 @@ func newCertValidationOpts(cfg ChainValidationConfig) (*chainValidationOpts, err
 	var err error
 	if cfg.RejectExtensions != "" {
 		lRejectExtensions := strings.Split(cfg.RejectExtensions, ",")
-		validationOpts.rejectExtIds, err = parseOIDs(lRejectExtensions)
+		validationOpts.RejectExtIds, err = parseOIDs(lRejectExtensions)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse RejectExtensions: %v", err)
 		}
@@ -217,4 +213,15 @@ var stringToKeyUsage = map[string]x509.ExtKeyUsage{
 	"OCSPSigning":                x509.ExtKeyUsageOCSPSigning,
 	"MicrosoftServerGatedCrypto": x509.ExtKeyUsageMicrosoftServerGatedCrypto,
 	"NetscapeServerGatedCrypto":  x509.ExtKeyUsageNetscapeServerGatedCrypto,
+}
+
+func NewPathHandlers(deadline time.Duration, maskInternalErrors bool, log *scti.Log) scti.PathHandlers {
+	opts := &scti.HandlerOptions{
+		Deadline:           deadline,
+		RequestLog:         &scti.DefaultRequestLog{},
+		MaskInternalErrors: maskInternalErrors,
+		TimeSource:         timeSource,
+	}
+
+	return scti.NewPathHandlers(opts, log)
 }
