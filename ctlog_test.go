@@ -181,7 +181,7 @@ func TestNewLog(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			log, err := NewLog(ctx, tc.origin, tc.signer, tc.cvcfg,
+			log, err := newLog(ctx, tc.origin, tc.signer, tc.cvcfg,
 				func(_ context.Context, _ note.Signer) (*storage.CTStorage, error) {
 					return &storage.CTStorage{}, nil
 				})

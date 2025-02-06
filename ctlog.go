@@ -20,6 +20,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/google/certificate-transparency-go/asn1"
 	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/certificate-transparency-go/x509util"
+	"github.com/rs/cors"
 	"github.com/transparency-dev/static-ct/internal/scti"
 	"github.com/transparency-dev/static-ct/storage"
 	"golang.org/x/mod/sumdb/note"
@@ -79,7 +81,7 @@ func (s systemTimeSource) Now() time.Time {
 
 var timeSource = systemTimeSource{}
 
-func NewLog(ctx context.Context, origin string, signer crypto.Signer, cfg ChainValidationConfig, cs CreateStorage) (*scti.Log, error) {
+func newLog(ctx context.Context, origin string, signer crypto.Signer, cfg ChainValidationConfig, cs CreateStorage) (*scti.Log, error) {
 	log := &scti.Log{}
 
 	if origin == "" {
@@ -215,7 +217,7 @@ var stringToKeyUsage = map[string]x509.ExtKeyUsage{
 	"NetscapeServerGatedCrypto":  x509.ExtKeyUsageNetscapeServerGatedCrypto,
 }
 
-func NewPathHandlers(deadline time.Duration, maskInternalErrors bool, log *scti.Log) scti.PathHandlers {
+func newPathHandlers(deadline time.Duration, maskInternalErrors bool, log *scti.Log) scti.PathHandlers {
 	opts := &scti.HandlerOptions{
 		Deadline:           deadline,
 		RequestLog:         &scti.DefaultRequestLog{},
@@ -224,4 +226,27 @@ func NewPathHandlers(deadline time.Duration, maskInternalErrors bool, log *scti.
 	}
 
 	return scti.NewPathHandlers(opts, log)
+}
+
+func NewCTHTTPServer(ctx context.Context, origin string, signer crypto.Signer, cfg ChainValidationConfig, cs CreateStorage, httpDeadline time.Duration, maskInternalErrors bool) (*http.ServeMux, error) {
+	log, err := newLog(ctx, origin, signer, cfg, cs)
+	if err != nil {
+		klog.Exitf("Invalid log config: %v", err)
+	}
+
+	handlers := newPathHandlers(httpDeadline, maskInternalErrors, log)
+
+	// Allow cross-origin requests to all handlers registered on corsMux.
+	// This is safe for CT log handlers because the log is public and
+	// unauthenticated so cross-site scripting attacks are not a concern.
+	corsMux := http.NewServeMux()
+	corsHandler := cors.AllowAll().Handler(corsMux)
+	http.Handle("/", corsHandler)
+
+	// Register handlers for all the configured logs.
+	for path, handler := range handlers {
+		corsMux.Handle(path, handler)
+	}
+
+	return corsMux, nil
 }

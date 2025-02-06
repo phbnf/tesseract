@@ -30,7 +30,6 @@ import (
 
 	"github.com/google/trillian/monitoring/opencensus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/rs/cors"
 	sctfe "github.com/transparency-dev/static-ct"
 	"github.com/transparency-dev/static-ct/storage"
 	gcpSCTFE "github.com/transparency-dev/static-ct/storage/gcp"
@@ -91,12 +90,10 @@ func main() {
 		NotAfterLimit:    notAfterLimit.t,
 	}
 
-	log, err := sctfe.NewLog(ctx, *origin, signer, chainValidationConfig, newGCPStorage)
+	corsMux, err := sctfe.NewCTHTTPServer(ctx, *origin, signer, chainValidationConfig, newGCPStorage, *httpDeadline, *maskInternalErrors)
 	if err != nil {
 		klog.Exitf("Invalid log config: %v", err)
 	}
-
-	handlers := sctfe.NewPathHandlers(*httpDeadline, *maskInternalErrors, log)
 
 	klog.CopyStandardLogTo("WARNING")
 	klog.Info("**** CT HTTP Server Starting ****")
@@ -104,18 +101,6 @@ func main() {
 	metricsAt := *metricsEndpoint
 	if metricsAt == "" {
 		metricsAt = *httpEndpoint
-	}
-
-	// Allow cross-origin requests to all handlers registered on corsMux.
-	// This is safe for CT log handlers because the log is public and
-	// unauthenticated so cross-site scripting attacks are not a concern.
-	corsMux := http.NewServeMux()
-	corsHandler := cors.AllowAll().Handler(corsMux)
-	http.Handle("/", corsHandler)
-
-	// Register handlers for all the configured logs.
-	for path, handler := range handlers {
-		corsMux.Handle(path, handler)
 	}
 
 	// Return a 200 on the root, for GCE default health checking :/
