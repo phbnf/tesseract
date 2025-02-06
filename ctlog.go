@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/asn1"
 	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/certificate-transparency-go/x509util"
@@ -80,12 +79,9 @@ func (s systemTimeSource) Now() time.Time {
 var timeSource = systemTimeSource{}
 
 func NewLog(ctx context.Context, origin string, signer crypto.Signer, cfg ChainValidationConfig, cs CreateStorage) (*scti.Log, error) {
-	log := &scti.Log{}
-
 	if origin == "" {
 		return nil, errors.New("empty origin")
 	}
-	log.Origin = origin
 
 	// Validate signer that only ECDSA is supported.
 	if signer == nil {
@@ -97,15 +93,10 @@ func NewLog(ctx context.Context, origin string, signer crypto.Signer, cfg ChainV
 		return nil, fmt.Errorf("unsupported key type: %v", keyType)
 	}
 
-	log.SignSCT = func(leaf *ct.MerkleTreeLeaf) (*ct.SignedCertificateTimestamp, error) {
-		return scti.BuildV1SCT(signer, leaf)
-	}
-
 	vlc, err := newCertValidationOpts(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("invalid cert validation config: %v", err)
 	}
-	log.ChainValidationOpts = *vlc
 
 	cpSigner, err := scti.NewCpSigner(signer, origin, timeSource)
 	if err != nil {
@@ -116,9 +107,8 @@ func NewLog(ctx context.Context, origin string, signer crypto.Signer, cfg ChainV
 	if err != nil {
 		klog.Exitf("failed to initiate storage backend: %v", err)
 	}
-	log.Storage = storage
 
-	return log, nil
+	return scti.NewLog(ctx, origin, signer, *vlc, storage)
 }
 
 // newCertValidationOpts checks that a chain validation config is valid,

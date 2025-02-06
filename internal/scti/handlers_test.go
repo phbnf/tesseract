@@ -105,10 +105,10 @@ func setupTest(t *testing.T, pemRoots []string, signer crypto.Signer) handlerTes
 		return BuildV1SCT(signer, leaf)
 	}
 	log := Log{
-		Storage:             info.storage,
-		SignSCT:             signSCT,
-		Origin:              origin,
-		ChainValidationOpts: vOpts,
+		storage:             info.storage,
+		signSCT:             signSCT,
+		origin:              origin,
+		chainValidationOpts: vOpts,
 	}
 	info.handlers = NewPathHandlers(&hOpts, &log)
 
