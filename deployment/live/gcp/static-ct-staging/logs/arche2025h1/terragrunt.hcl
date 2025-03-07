@@ -3,11 +3,10 @@ terraform {
 }
 
 locals {
-  env                 = "staging"
-  docker_env          = local.env
+  docker_env          = "staging"
   base_name           = "arche2025h1"
   origin_suffix       = ".ct.transparency.dev"
-  server_docker_image = "us-central1-docker.pkg.dev/${include.root.locals.project_id}/docker-${local.env}/conformance-gcp:latest"
+  server_docker_image = "us-central1-docker.pkg.dev/${include.root.locals.project_id}/docker-staging/conformance-gcp:latest"
 }
 
 include "root" {

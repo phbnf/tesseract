@@ -1,4 +1,5 @@
 locals {
+  env            = ""
   project_id     = get_env("GOOGLE_PROJECT", "static-ct-staging")
   location       = get_env("GOOGLE_REGION", "us-central1")
   base_name      = path_relative_to_include()
