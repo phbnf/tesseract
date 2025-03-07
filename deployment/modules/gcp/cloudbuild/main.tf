@@ -64,6 +64,7 @@ resource "google_cloudbuild_trigger" "build_trigger" {
       id     = "preclean_env"
       name   = "alpine/terragrunt"
       script = <<EOT
+	pwd
         terragrunt --terragrunt-non-interactive --terragrunt-no-color destroy -auto-approve -no-color 2>&1
       EOT
       dir    = "deployment/live/gcp/static-ct/logs/ci"
