@@ -122,6 +122,19 @@ resource "google_cloudbuild_trigger" "build_trigger" {
       wait_for = ["docker_push_conformance_gcp"]
     }
 
+    ## Since the conformance infrastructure is not publicly accessible, we need to use 
+    ## bearer tokens for the test to access them.
+    ## This step creates those, and stores them for later use.
+    step {
+      id       = "bearer_token"
+      name     = "gcr.io/cloud-builders/gcloud"
+      script   = <<EOT
+        curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/${local.cloudbuild_service_account}/identity?audience=$(cat /workspace/conformance_url)" > /workspace/cb_identity
+	
+      EOT
+      wait_for = ["terraform_apply_conformance_staging"]
+    }
+
     ## TODO(phboneff): move to its own container.
     ## Test against the conformance server with CT Hammer.
     step {
@@ -136,6 +149,7 @@ resource "google_cloudbuild_trigger" "build_trigger" {
 
         go run github.com/google/certificate-transparency-go/trillian/integration/ct_hammer@master \
            --ct_http_servers="$(cat /workspace/conformance_url)/arche2025h1.ct.transparency.dev" \
+	   --bearer_token="$(cat /workspace/cb_identity)" \
            --max_retry=2m \
            --invalid_chance=0 \
            --get_sth=0 \
@@ -152,7 +166,7 @@ resource "google_cloudbuild_trigger" "build_trigger" {
            --src_log_uri=https://ct.googleapis.com/logs/us1/argon2025h1
 
       EOT
-      wait_for = ["terraform_apply_conformance_staging"]
+      wait_for = ["bearer_token"]
     }
 
     options {
