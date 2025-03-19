@@ -22,6 +22,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"log"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -295,6 +297,9 @@ func readVarUint(data []byte, info *fieldInfo) (uint64, error) {
 	if info == nil || !info.countSet {
 		return 0, structuralError{info.fieldName(), "no field size information available"}
 	}
+	if info.count > math.MaxInt {
+		log.Printf("info.count=%d int would overflow", info.count)
+	}
 	if len(data) < int(info.count) {
 		return 0, syntaxError{info.fieldName(), "truncated variable-length integer"}
 	}
@@ -365,6 +370,9 @@ func parseField(v reflect.Value, data []byte, initOffset int, info *fieldInfo) (
 			return offset, err
 		}
 		v.SetUint(val)
+		if info.count > math.MaxInt {
+			log.Printf("info.count=%d int would overflow", info.count)
+		}
 		offset += int(info.count)
 		return offset, nil
 	case reflect.Struct:
@@ -468,7 +476,13 @@ func parseField(v reflect.Value, data []byte, initOffset int, info *fieldInfo) (
 		if err != nil {
 			return offset, err
 		}
+		if varlen > math.MaxInt {
+			log.Printf("varlen=%d int would overflow", varlen)
+		}
 		datalen := int(varlen)
+		if info.count > math.MaxInt {
+			log.Printf("info.count=%d int would overflow", info.count)
+		}
 		offset += int(info.count)
 		rest = rest[info.count:]
 
