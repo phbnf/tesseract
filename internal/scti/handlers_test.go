@@ -15,13 +15,20 @@
 package scti
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
+	"net/http"
 	"net/http/httptest"
 	"path"
 	"testing"
 	"time"
 
+	"github.com/transparency-dev/static-ct/internal/testdata"
 	"github.com/transparency-dev/static-ct/internal/testonly/storage/inmemory"
+	"github.com/transparency-dev/static-ct/internal/types"
 	"github.com/transparency-dev/static-ct/internal/x509util"
 	"github.com/transparency-dev/static-ct/storage"
 	"github.com/transparency-dev/static-ct/storage/bbolt"
@@ -134,4 +141,34 @@ func newPosixStorageFunc(t *testing.T) storage.CreateStorage {
 		}
 		return s, nil
 	}
+}
+
+func TestGetRoots(t *testing.T) {
+	t.Run("get-roots", func(t *testing.T) {
+		server := setupTestServer(t, path.Join(prefix, "ct/v1/get-roots"))
+		defer server.Close()
+		resp, err := http.Get(server.URL + path.Join(prefix, "ct/v1/get-roots"))
+		if err != nil {
+			t.Fatalf("Failed to get roots: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Unexpected status code: %v", resp.StatusCode)
+		}
+		var roots types.GetRootsResponse
+		err = json.NewDecoder(resp.Body).Decode(&roots)
+		if err != nil {
+			t.Errorf("Failed to decode response: %v", err)
+		}
+		if got, want := len(roots.Certificates), 1; got != want {
+			t.Errorf("Unexpected number of certificates: got %d, want %d", got, want)
+		}
+		got, err := base64.StdEncoding.DecodeString(roots.Certificates[0])
+		if err != nil {
+			t.Errorf("Failed to decode certificate: %v", err)
+		}
+		want, _ := pem.Decode([]byte(testdata.CACertPEM))
+		if !bytes.Equal(got, want.Bytes) {
+			t.Errorf("Unexpected root: got %s, want %s", roots.Certificates[0], base64.StdEncoding.EncodeToString(want.Bytes))
+		}
+	})
 }
