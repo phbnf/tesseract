@@ -47,16 +47,26 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// Test root
-var testRootPath = "../testdata/test_root_ca_cert.pem"
+var (
+	// Test root
+	testRootPath = "../testdata/test_root_ca_cert.pem"
 
-// Arbitrary time for use in tests
-var fakeTime = time.Date(2016, 7, 22, 11, 01, 13, 0, time.UTC)
-var fakeTimeMillis = uint64(fakeTime.UnixNano() / nanosPerMilli)
+	// Arbitrary time for use in tests
+	fakeTime       = time.Date(2016, 7, 22, 11, 01, 13, 0, time.UTC)
+	fakeTimeMillis = uint64(fakeTime.UnixNano() / nanosPerMilli)
 
-// Arbitrary origin for tests
-var origin = "example.com"
-var prefix = "/" + origin
+	// Arbitrary origin for tests
+	origin = "example.com"
+	prefix = "/" + origin
+
+	// Default handler options for tests
+	hOpts = HandlerOptions{
+		Deadline:           time.Millisecond * 500,
+		RequestLog:         &DefaultRequestLog{},
+		MaskInternalErrors: false,
+		TimeSource:         newFixedTimeSource(fakeTime),
+	}
+)
 
 type fixedTimeSource struct {
 	fakeTime time.Time
@@ -103,14 +113,8 @@ func setupTestLog(t *testing.T) *log {
 // setupTestServer creates a test TesseraCT server with a single endpoint at path.
 func setupTestServer(t *testing.T, log *log, path string) *httptest.Server {
 	t.Helper()
-	opts := &HandlerOptions{
-		Deadline:           time.Millisecond * 500,
-		RequestLog:         &DefaultRequestLog{},
-		MaskInternalErrors: false,
-		TimeSource:         newFixedTimeSource(fakeTime),
-	}
 
-	handlers := NewPathHandlers(opts, log)
+	handlers := NewPathHandlers(&hOpts, log)
 	handler, ok := handlers[path]
 	if !ok {
 		t.Fatalf("Handler not found: %s", path)
@@ -192,13 +196,7 @@ func postHandlers(t *testing.T, handlers pathHandlers) pathHandlers {
 
 func TestPostHandlersRejectGet(t *testing.T) {
 	log := setupTestLog(t)
-	opts := &HandlerOptions{
-		Deadline:           time.Millisecond * 500,
-		RequestLog:         &DefaultRequestLog{},
-		MaskInternalErrors: false,
-		TimeSource:         newFixedTimeSource(fakeTime),
-	}
-	handlers := NewPathHandlers(opts, log)
+	handlers := NewPathHandlers(&hOpts, log)
 
 	// Anything in the post handler list should reject GET
 	for path, handler := range postHandlers(t, handlers) {
@@ -221,13 +219,7 @@ func TestPostHandlersRejectGet(t *testing.T) {
 
 func TestGetHandlersRejectPost(t *testing.T) {
 	log := setupTestLog(t)
-	opts := &HandlerOptions{
-		Deadline:           time.Millisecond * 500,
-		RequestLog:         &DefaultRequestLog{},
-		MaskInternalErrors: false,
-		TimeSource:         newFixedTimeSource(fakeTime),
-	}
-	handlers := NewPathHandlers(opts, log)
+	handlers := NewPathHandlers(&hOpts, log)
 
 	// Anything in the get handler list should reject POST.
 	for path, handler := range getHandlers(t, handlers) {
@@ -260,13 +252,7 @@ func TestPostHandlersFailure(t *testing.T) {
 	}
 
 	log := setupTestLog(t)
-	opts := &HandlerOptions{
-		Deadline:           time.Millisecond * 500,
-		RequestLog:         &DefaultRequestLog{},
-		MaskInternalErrors: false,
-		TimeSource:         newFixedTimeSource(fakeTime),
-	}
-	handlers := NewPathHandlers(opts, log)
+	handlers := NewPathHandlers(&hOpts, log)
 
 	for path, handler := range postHandlers(t, handlers) {
 		t.Run(path, func(t *testing.T) {
