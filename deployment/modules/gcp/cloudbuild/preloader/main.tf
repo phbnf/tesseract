@@ -70,12 +70,12 @@ resource "google_cloudbuild_trigger" "preloader_trigger" {
       id       = "ct_preloader"
       name     = "golang"
       script   = <<EOT
-	      START_INDEX=$(curl -H "Authorization: Bearer $(cat /workspace/cb_access)" https://storage.googleapis.com/${var.monitoring_url}/checkpoint | head -2 | tail -1)
+	      START_INDEX=$(curl -H "Authorization: Bearer $(cat /workspace/cb_access)" ${var.monitoring_url}/checkpoint | head -2 | tail -1)
 	      echo "Will start preloader at index $START_INDEX"
         go run github.com/google/certificate-transparency-go/preload/preloader@master \
           --target_log_uri=${var.submission_url}/ \
 	        --target_bearer_token="$(cat /workspace/cb_identity)" \
-          --source_log_uri=https://ct.googleapis.com/logs/us1/argon2025h1 \
+          --source_log_uri=${var.source_log_uri} \
 	        --start_index=$START_INDEX \
           --num_workers=20 \
           --parallel_fetch=20 \
