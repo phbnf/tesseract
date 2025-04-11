@@ -64,44 +64,48 @@ func serializeSCTSignatureInput(sct rfc6962.SignedCertificateTimestamp, entry rf
 	}
 }
 
-func (sctSigner *sctSigner) Sign(leaf *rfc6962.MerkleTreeLeaf) (*rfc6962.SignedCertificateTimestamp, error) {
-	// Serialize SCT signature input to get the bytes that need to be signed
-	sctInput := rfc6962.SignedCertificateTimestamp{
-		SCTVersion: rfc6962.V1,
-		Timestamp:  leaf.TimestampedEntry.Timestamp,
-		Extensions: leaf.TimestampedEntry.Extensions,
-	}
-	data, err := serializeSCTSignatureInput(sctInput, rfc6962.LogEntry{Leaf: *leaf})
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize SCT data: %v", err)
+// signSCT builds an SCT for a leaf.
+func NewSCCTSignFunc(signer crypto.Signer) signSCT {
+	return func(leaf *rfc6962.MerkleTreeLeaf) (*rfc6962.SignedCertificateTimestamp, error) {
+		// Serialize SCT signature input to get the bytes that need to be signed
+		sctInput := rfc6962.SignedCertificateTimestamp{
+			SCTVersion: rfc6962.V1,
+			Timestamp:  leaf.TimestampedEntry.Timestamp,
+			Extensions: leaf.TimestampedEntry.Extensions,
+		}
+		data, err := serializeSCTSignatureInput(sctInput, rfc6962.LogEntry{Leaf: *leaf})
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize SCT data: %v", err)
+		}
+
+		h := sha256.Sum256(data)
+		signature, err := signer.Sign(rand.Reader, h[:], crypto.SHA256)
+		if err != nil {
+			return nil, fmt.Errorf("failed to sign SCT data: %v", err)
+		}
+
+		digitallySigned := rfc6962.DigitallySigned{
+			Algorithm: tls.SignatureAndHashAlgorithm{
+				Hash:      tls.SHA256,
+				Signature: tls.SignatureAlgorithmFromPubKey(signer.Public()),
+			},
+			Signature: signature,
+		}
+
+		logID, err := getCTLogID(signer.Public())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get logID for signing: %v", err)
+		}
+
+		return &rfc6962.SignedCertificateTimestamp{
+			SCTVersion: rfc6962.V1,
+			LogID:      rfc6962.LogID{KeyID: logID},
+			Timestamp:  sctInput.Timestamp,
+			Extensions: sctInput.Extensions,
+			Signature:  digitallySigned,
+		}, nil
 	}
 
-	h := sha256.Sum256(data)
-	signature, err := sctSigner.signer.Sign(rand.Reader, h[:], crypto.SHA256)
-	if err != nil {
-		return nil, fmt.Errorf("failed to sign SCT data: %v", err)
-	}
-
-	digitallySigned := rfc6962.DigitallySigned{
-		Algorithm: tls.SignatureAndHashAlgorithm{
-			Hash:      tls.SHA256,
-			Signature: tls.SignatureAlgorithmFromPubKey(sctSigner.signer.Public()),
-		},
-		Signature: signature,
-	}
-
-	logID, err := getCTLogID(sctSigner.signer.Public())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get logID for signing: %v", err)
-	}
-
-	return &rfc6962.SignedCertificateTimestamp{
-		SCTVersion: rfc6962.V1,
-		LogID:      rfc6962.LogID{KeyID: logID},
-		Timestamp:  sctInput.Timestamp,
-		Extensions: sctInput.Extensions,
-		Signature:  digitallySigned,
-	}, nil
 }
 
 type rfc6962NoteSignature struct {

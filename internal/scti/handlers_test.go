@@ -96,10 +96,12 @@ func setupTestLog(t *testing.T) (*log, string) {
 	t.Helper()
 	storageDir := t.TempDir()
 
-	sctSigner, err := setupSCTSigner(fakeSignature)
+	block, _ := pem.Decode([]byte(testdata.DemoPublicKey))
+	key, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		t.Fatalf("Failed to create test signer: %v", err)
+		t.Fatalf("Failed to parse public test key: %v", err)
 	}
+	signer := testdata.NewSignerWithFixedSig(key, fakeSignature)
 
 	roots := x509util.NewPEMCertPool()
 	if err := roots.AppendCertsFromPEMFile(testRootPath); err != nil {
@@ -112,7 +114,7 @@ func setupTestLog(t *testing.T) (*log, string) {
 		rejectUnexpired: false,
 	}
 
-	log, err := NewLog(t.Context(), origin, sctSigner.signer, cv, newPOSIXStorageFunc(t, storageDir), newFixedTimeSource(fakeTime))
+	log, err := NewLog(t.Context(), origin, signer, cv, newPOSIXStorageFunc(t, storageDir), newFixedTimeSource(fakeTime))
 	if err != nil {
 		t.Fatalf("newLog(): %v", err)
 	}

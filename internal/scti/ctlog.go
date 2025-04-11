@@ -74,9 +74,7 @@ func NewLog(ctx context.Context, origin string, signer crypto.Signer, cv ChainVa
 		return nil, fmt.Errorf("unsupported key type: %v", keyType)
 	}
 
-	sctSigner := &sctSigner{signer: signer}
-	log.signSCT = sctSigner.Sign
-
+	log.signSCT = NewSCCTSignFunc(signer)
 	log.chainValidator = cv
 
 	cpSigner, err := NewCpSigner(signer, origin, ts)
