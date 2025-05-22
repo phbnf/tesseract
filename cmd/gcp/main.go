@@ -28,14 +28,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/transparency-dev/tesseract"
-	"github.com/transparency-dev/tesseract/storage"
-	"github.com/transparency-dev/tesseract/storage/gcp"
 	"github.com/transparency-dev/tessera"
 	tgcp "github.com/transparency-dev/tessera/storage/gcp"
 	gcp_as "github.com/transparency-dev/tessera/storage/gcp/antispam"
+	"github.com/transparency-dev/tesseract"
+	"github.com/transparency-dev/tesseract/storage"
+	"github.com/transparency-dev/tesseract/storage/gcp"
 	"golang.org/x/mod/sumdb/note"
 	"k8s.io/klog/v2"
+
+	_ "net/http/pprof"
+
+	"github.com/pkg/profile"
 )
 
 func init() {
@@ -71,6 +75,14 @@ func main() {
 	klog.InitFlags(nil)
 	flag.Parse()
 	ctx := context.Background()
+
+	defer profile.Start(profile.MemProfile).Stop()
+
+	go func() {
+		// Start a pprof HTTP server
+		klog.Infof("Starting pprof server on :8080")
+		klog.Error(http.ListenAndServe(":8080", nil))
+	}()
 
 	shutdownOTel := initOTel(ctx, *traceFraction, *origin)
 	defer shutdownOTel(ctx)
