@@ -28,7 +28,7 @@ resource "google_cloud_run_v2_service" "default" {
   template {
     service_account                  = "${local.cloudrun_service_account_id}@${var.project_id}.iam.gserviceaccount.com"
     max_instance_request_concurrency = 700
-    timeout                          = "5s"
+    timeout                          = "30s"
 
     scaling {
       max_instance_count = 2
