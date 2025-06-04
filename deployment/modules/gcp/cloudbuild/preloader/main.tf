@@ -72,7 +72,7 @@ resource "google_cloudbuild_trigger" "preloader_trigger" {
       name     = "golang"
       script   = <<EOT
 	      START_INDEX=$(curl -H "Authorization: Bearer $(cat /workspace/cb_access)" ${var.monitoring_url}/checkpoint | head -2 | tail -1)
-	      END_INDEX=$(($START_INDEX+360000))
+	      END_INDEX=$(($START_INDEX+360000+${var.start_index_offset}))
 	      echo "Will run preloader between $START_INDEX and $END_INDEX"
         go run github.com/google/certificate-transparency-go/preload/preloader@master \
           --target_log_uri=${var.submission_url}/ \
