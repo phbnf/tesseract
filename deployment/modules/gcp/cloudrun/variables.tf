@@ -75,3 +75,15 @@ variable "trace_fraction" {
   default     = 0
   type        = number
 }
+
+variable "batch_max_size" {
+  description = "Maximum number of entries to process in a single sequencing batch."
+  type = number
+  default = 100
+}
+
+variable "batch_max_age" {
+  description = "Maximum age of entries in a single sequencing batch."
+  type = string
+  default = "500ms"
+}
