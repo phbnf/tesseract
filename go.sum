@@ -1026,6 +1026,8 @@ github.com/transparency-dev/tessera v0.2.1-0.20250605151436-e4b944f0baea h1:kxpJ
 github.com/transparency-dev/tessera v0.2.1-0.20250605151436-e4b944f0baea/go.mod h1:TCBUuKfA9FdeLPwruM6PE9oDuih3Jz0Dz3AbaZxI+vc=
 github.com/transparency-dev/tessera v0.2.1-0.20250605162932-5d0bfff9f501 h1:UPanGnc72oHLduOGf6DuhbEp3Azo6nSptF/9J08xT5w=
 github.com/transparency-dev/tessera v0.2.1-0.20250605162932-5d0bfff9f501/go.mod h1:TCBUuKfA9FdeLPwruM6PE9oDuih3Jz0Dz3AbaZxI+vc=
+github.com/transparency-dev/tessera v0.2.1-0.20250605172821-33c3a9259210 h1:q2EFWC/h/7idWX/VBhdOUBAvxdRWWk4KBxDx3TGbkRs=
+github.com/transparency-dev/tessera v0.2.1-0.20250605172821-33c3a9259210/go.mod h1:TCBUuKfA9FdeLPwruM6PE9oDuih3Jz0Dz3AbaZxI+vc=
 github.com/yuin/goldmark v1.1.25/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
