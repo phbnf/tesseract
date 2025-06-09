@@ -60,7 +60,7 @@ variable "batch_max_size" {
 variable "batch_max_age" {
   description = "Maximum age of entries in a single sequencing batch."
   type = string
-  default = "2s"
+  default = "500ms"
 }
 
 variable "ephemeral" {
