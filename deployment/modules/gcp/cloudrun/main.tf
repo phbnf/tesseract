@@ -40,7 +40,7 @@ resource "google_cloud_run_v2_service" "default" {
       name  = "tesseract"
       args = [
         "--logtostderr",
-        "--v=1",
+        "--v=3",
         "--http_endpoint=:6962",
         "--bucket=${var.bucket}",
         "--spanner_db_path=${local.spanner_log_db_path}",
