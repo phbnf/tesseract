@@ -77,6 +77,14 @@ resource "google_cloud_run_v2_service" "default" {
         }
       }
     }
+    vpc_access {
+      network_interfaces {
+        network    = "default"
+        subnetwork = "default"
+        tags       = ["thisisatag",]
+      }
+      egress = "ALL_TRAFFIC"
+    }
   }
 
   deletion_protection = false
