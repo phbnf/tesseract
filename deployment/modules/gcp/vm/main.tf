@@ -137,8 +137,12 @@ resource "google_compute_region_instance_group_manager" "instance_group_manager"
   target_size        = "3"
 
   update_policy {
-    type = "PROACTIVE"
-    minimal_action = "REFRESH"
+    type                           = "PROACTIVE"
+    instance_redistribution_type   = "PROACTIVE"
+    minimal_action                 = "REPLACE"
+    most_disruptive_allowed_action = "REPLACE"
+    # min_ready_sec                  = 50 // this is a beta feature for now
+    replacement_method             = "SUBSTITUTE"
   }
 
   named_port {
