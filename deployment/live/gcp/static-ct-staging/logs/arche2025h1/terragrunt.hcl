@@ -1,5 +1,5 @@
 terraform {
-  source = "${get_repo_root()}/deployment/modules/gcp//tesseract/cloudrun"
+  source = "${get_repo_root()}/deployment/modules/gcp//tesseract/vm"
 }
 
 locals {
