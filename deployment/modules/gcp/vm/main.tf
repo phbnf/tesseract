@@ -21,7 +21,7 @@ resource "google_project_service" "cloudrun_api" {
   disable_on_destroy = false
 }
 
-module "gce-container" {
+module "gce_container_tesseract" {
   # https://github.com/terraform-google-modules/terraform-google-container-vm
   source = "terraform-google-modules/container-vm/google"
   version = "~> 2.0"
@@ -73,7 +73,7 @@ resource "google_compute_region_instance_template" "tesseract" {
 
   labels = {
     environment = var.env
-    container-vm = module.gce-container.vm_container_label
+    container-vm = module.gce_container_tesseract.vm_container_label
   }
 
   instance_description = "TesseraCT"
@@ -87,7 +87,7 @@ resource "google_compute_region_instance_template" "tesseract" {
 
   // Create a new boot disk from an image
   disk {
-    source_image      = module.gce-container.source_image # come back to this
+    source_image      = module.gce_container_tesseract.source_image # come back to this
     auto_delete       = true
     boot              = true
   }
@@ -97,8 +97,7 @@ resource "google_compute_region_instance_template" "tesseract" {
   }
 
   metadata = {
-    foo = "foo metadata"
-    gce-container-declaration = module.gce-container.metadata_value
+    gce-container-declaration = module.gce_container_tesseract.metadata_value
     google-logging-enabled = "true"
     google-monitoring-enabled = "true"
   }
@@ -159,7 +158,7 @@ resource "google_compute_region_instance_group_manager" "instance_group_manager"
 }
 
 // TODO(phbnf): move to external load balancer, or maybe forward to this one.
-module "gce-ilb" {
+module "gce_ilb" {
   source            = "GoogleCloudPlatform/lb-internal/google"
   version           = "~> 7.0"
   region            = var.location
@@ -195,7 +194,7 @@ module "gce-ilb" {
   ]
 }
 
-module "preloader-container" {
+module "gce_container_preloader" {
   # https://github.com/terraform-google-modules/terraform-google-container-vm
   source = "terraform-google-modules/container-vm/google"
   version = "~> 2.0"
@@ -225,7 +224,7 @@ resource "google_compute_instance" "preloader" {
 
   boot_disk {
     initialize_params {
-      image  = module.preloader-container.source_image # come back to this
+      image  = module.gce_container_preloader.source_image # come back to this
       labels = {
         my_label = "value"
       }
@@ -238,7 +237,7 @@ resource "google_compute_instance" "preloader" {
 
   labels = {
     environment = var.env
-    container-vm = module.preloader-container.vm_container_label
+    container-vm = module.gce_container_preloader.vm_container_label
   }
 
   scheduling {
@@ -247,8 +246,7 @@ resource "google_compute_instance" "preloader" {
   }
 
   metadata = {
-    foo = "foo metadata"
-    gce-container-declaration = module.preloader-container.metadata_value
+    gce-container-declaration = module.gce_container_preloader.metadata_value
     google-logging-enabled = "true"
     google-monitoring-enabled = "true"
   }
