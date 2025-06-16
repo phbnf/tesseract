@@ -78,16 +78,15 @@ resource "google_compute_region_instance_template" "tesseract" {
 
   instance_description = "TesseraCT"
   machine_type         = "n2-standard-4"
-  can_ip_forward       = false # come back to this
 
   scheduling {
-    automatic_restart   = true # come back to this
-    on_host_maintenance = "MIGRATE" # come back to his
+    automatic_restart   = true
+    on_host_maintenance = "MIGRATE"
   }
 
   // Create a new boot disk from an image
   disk {
-    source_image      = module.gce_container_tesseract.source_image # come back to this
+    source_image      = module.gce_container_tesseract.source_image
     auto_delete       = true
     boot              = true
   }
@@ -105,7 +104,7 @@ resource "google_compute_region_instance_template" "tesseract" {
   service_account {
     # Google recommends custom service accounts that have cloud-platform scope and permissions granted via IAM Roles.
     email = "${local.cloudrun_service_account_id}@${var.project_id}.iam.gserviceaccount.com" # change this
-    scopes = ["cloud-platform"] # come back to this
+    scopes = ["cloud-platform"] # Allows using service accounts and OAuth.
   }
 }
 
@@ -224,7 +223,7 @@ resource "google_compute_instance" "preloader" {
 
   boot_disk {
     initialize_params {
-      image  = module.gce_container_preloader.source_image # come back to this
+      image  = module.gce_container_preloader.source_image
       labels = {
         my_label = "value"
       }
@@ -240,9 +239,11 @@ resource "google_compute_instance" "preloader" {
     container-vm = module.gce_container_preloader.vm_container_label
   }
 
+  # Come back to this: the start_index needs to be manually edited
+  # when the prelaoder restarts.
   scheduling {
-    automatic_restart   = true # come back to this
-    on_host_maintenance = "MIGRATE" # come back to his
+    automatic_restart   = true
+    on_host_maintenance = "MIGRATE"
   }
 
   metadata = {
@@ -254,6 +255,6 @@ resource "google_compute_instance" "preloader" {
   service_account {
     # Google recommends custom service accounts that have cloud-platform scope and permissions granted via IAM Roles.
     email = "${local.cloudrun_service_account_id}@${var.project_id}.iam.gserviceaccount.com" # change this
-    scopes = ["cloud-platform"] # come back to this
+    scopes = ["cloud-platform"] # Allows using service accounts and OAuth.
   }
 }
