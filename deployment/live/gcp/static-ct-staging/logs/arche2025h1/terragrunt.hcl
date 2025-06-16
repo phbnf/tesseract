@@ -13,7 +13,7 @@ locals {
   spanner_pu               = 500
   trace_fraction           = 0.1
   preloader_source_log_uri = "https://ct.googleapis.com/logs/us1/argon2025h1"
-  preloader_start_index    = 774077265
+  preloader_start_index    = 993001855
 }
 
 include "root" {

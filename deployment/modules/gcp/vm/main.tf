@@ -69,7 +69,7 @@ resource "google_compute_region_instance_template" "tesseract" {
     create_before_destroy = true
   }
 
-  tags = ["thisisatag"]
+  tags = ["tesseract-allow-group"]
 
   labels = {
     environment = var.env
@@ -163,8 +163,8 @@ module "gce_ilb" {
   region            = var.location
   name              = "${var.base_name}-ilb"
   ports             = ["6962"]
-  source_tags       = ["source-tag"]
-  target_tags       = ["target-tag"]
+  source_tags       = []
+  target_tags       = ["${var.base_name}-allow-group"]
   service_label     = var.base_name
 
   health_check = {
@@ -204,9 +204,9 @@ module "gce_container_preloader" {
       "--target_log_uri=${local.tesseract_url}:6962/${var.base_name}${var.origin_suffix}",
       "--source_log_uri=${var.preloader_source_log_uri}",
       "--start_index=${var.preloader_start_index}",
-      "--num_workers=400", 
+      "--num_workers=500", 
       "--parallel_fetch=20", 
-      "--parallel_submit=400",
+      "--parallel_submit=500",
     ]
     tty : true # maybe remove this
   }
@@ -216,10 +216,10 @@ module "gce_container_preloader" {
 
 resource "google_compute_instance" "preloader" {
   name         = "${var.base_name}-preloader"
-  machine_type = "n2-standard-2"
+  machine_type = "n2-standard-4"
   zone         = "us-central1-f"
 
-  tags = ["foo", "bar"]
+  tags = ["preloader-allow-group"]
 
   boot_disk {
     initialize_params {
@@ -245,6 +245,7 @@ resource "google_compute_instance" "preloader" {
     automatic_restart   = true
     on_host_maintenance = "MIGRATE"
   }
+  allow_stopping_for_update =  true
 
   metadata = {
     gce-container-declaration = module.gce_container_preloader.metadata_value
