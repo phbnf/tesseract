@@ -142,6 +142,8 @@ resource "google_compute_region_instance_group_manager" "instance_group_manager"
     most_disruptive_allowed_action = "REPLACE"
     # min_ready_sec                  = 50 // this is a beta feature for now
     replacement_method             = "SUBSTITUTE"
+    max_surge_fixed                = 3
+    max_unavailable_fixed          = 0
   }
 
   named_port {
