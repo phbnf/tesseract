@@ -13,6 +13,7 @@ locals {
   cloudrun_service_account_id = var.env == "" ? "cloudrun-sa" : "cloudrun-${var.env}-sa"
   spanner_log_db_path         = "projects/${var.project_id}/instances/${var.log_spanner_instance}/databases/${var.log_spanner_db}"
   spanner_antispam_db_path    = "projects/${var.project_id}/instances/${var.log_spanner_instance}/databases/${var.antispam_spanner_db}"
+  tesseract_url               = "http://${var.base_name}.${var.base_name}-ilb.il4.${var.location}.lb.${var.project_id}.internal" // will be created by ilb
 }
 
 resource "google_project_service" "cloudrun_api" {
@@ -164,6 +165,7 @@ module "gce-ilb" {
   ports             = ["6962"]
   source_tags       = ["source-tag"]
   target_tags       = ["target-tag"]
+  service_label     = var.base_name
 
   health_check = {
     type                = "http"
@@ -199,7 +201,7 @@ module "preloader-container" {
   container = {
     image = "us-central1-docker.pkg.dev/static-ct-staging/docker-staging/preloader@sha256:4fd99df0ba68b726cef52d41c05a2e58dbd077ee4eddd7396e871a91caa46394"
     args = [
-      "--target_log_uri=http://${module.gce-ilb.ip_address}:6962/${var.base_name}${var.origin_suffix}",
+      "--target_log_uri=${local.tesseract_url}:6962/${var.base_name}${var.origin_suffix}",
       "--source_log_uri=https://ct.googleapis.com/logs/us1/argon2025h1", // TODO(phbnf): make this a flag
       "--start_index=774077265", // TODO(phbnf): make this a flag
       "--num_workers=400", 
