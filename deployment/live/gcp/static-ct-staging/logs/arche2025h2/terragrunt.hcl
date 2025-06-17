@@ -12,8 +12,6 @@ locals {
   server_docker_image      = "${include.root.locals.location}-docker.pkg.dev/${include.root.locals.project_id}/docker-${local.env}/tesseract-gcp:${include.root.locals.docker_container_tag}"
   spanner_pu               = 500
   trace_fraction           = 0.1
-  preloader_source_log_uri = "https://ct.googleapis.com/logs/us1/argon2025h2"
-  preloader_start_index    = 103985753 
 }
 
 include "root" {
