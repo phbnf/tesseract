@@ -23,11 +23,6 @@ variable "github_owner" {
   type        = string
 }
 
-variable "submission_url" {
-  description = "Submission URL of the destination static-ct-api log"
-  type        = string
-}
-
 variable "monitoring_url" {
   description = "Monitoring URL of the destination static-ct-api log"
   type        = string
@@ -41,4 +36,9 @@ variable "source_log_uri" {
 variable "start_index_offset" {
   description = "Offset to apply to the start index"
   type        = number
+}
+
+variable "preloader_terragrunt" {
+  description = "Paths of the ploader terragrunt config to deploy, from the root of the repository"
+  type        = list
 }
