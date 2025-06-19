@@ -1,4 +1,5 @@
 terraform {
+  backend "gcs" {}
   required_providers {
     google = {
       source  = "registry.terraform.io/hashicorp/google"
@@ -6,8 +7,6 @@ terraform {
     }
   }
 }
-
-# Cloud Run
 
 locals {
   cloudrun_service_account_id = var.env == "" ? "cloudrun-sa" : "cloudrun-${var.env}-sa"
@@ -20,9 +19,9 @@ module "gce_container_preloader" {
   version = "~> 2.0"
 
   container = {
-    image = "us-central1-docker.pkg.dev/static-ct-staging/docker-staging/preloader@sha256:4fd99df0ba68b726cef52d41c05a2e58dbd077ee4eddd7396e871a91caa46394"
+    image = var.server_docker_image,
     args = [
-      "--target_log_uri=${var.target_log_uri}:6962/${var.base_name}${var.origin_suffix}", // TODO(phbnf): put the full URL in the var and get rid of origin suffix
+      "--target_log_uri=${var.target_log_uri}",
       "--source_log_uri=${var.source_log_uri}",
       "--start_index=${var.start_index}",
       "--num_workers=500", 
