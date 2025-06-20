@@ -62,7 +62,7 @@ resource "google_compute_region_instance_template" "tesseract" {
     create_before_destroy = true
   }
 
-  tags = ["tesseract-allow-group"]
+  tags = ["tesseract-allow-group", "allow-health-checks"]
 
   labels = {
     environment = var.env
