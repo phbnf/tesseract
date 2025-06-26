@@ -148,39 +148,87 @@ resource "google_compute_region_instance_group_manager" "instance_group_manager"
 }
 
 // TODO(phbnf): move to external load balancer, or maybe forward to this one.
-module "gce_ilb" {
-  source            = "GoogleCloudPlatform/lb-internal/google"
-  version           = "~> 7.0"
-  region            = var.location
-  name              = "${var.base_name}-ilb"
-  ports             = ["6962"]
-  source_tags       = []
-  // TODO(phbnf): come back to this, it doesn't match with the VM tags.
-  target_tags       = ["${var.base_name}-allow-group"]
-  service_label     = var.base_name
+# module "gce_ilb" {
+#   source            = "GoogleCloudPlatform/lb-internal/google"
+#   version           = "~> 7.0"
+#   region            = var.location
+#   name              = "${var.base_name}-ilb"
+#   ports             = ["6962"]
+#   source_tags       = []
+#   // TODO(phbnf): come back to this, it doesn't match with the VM tags.
+#   target_tags       = ["${var.base_name}-allow-group"]
+#   service_label     = var.base_name
+# 
+#   health_check = {
+#     type                = "http"
+#     check_interval_sec  = 1
+#     healthy_threshold   = 4
+#     timeout_sec         = 1
+#     unhealthy_threshold = 5
+#     response            = ""
+#     proxy_header        = "NONE"
+#     port                = 6962
+#     port_name           = "health-check-port"
+#     request             = ""
+#     request_path        = "/healthz"
+#     host                = "1.2.3.4"
+#     enable_log          = false
+#   }
+# 
+#   backends = [
+#     {
+#       group       = google_compute_region_instance_group_manager.instance_group_manager.instance_group
+#       description = ""
+#       failover    = false
+#       balancing_mode = "CONNECTION"
+#     },
+#   ]
+# }
 
-  health_check = {
-    type                = "http"
-    check_interval_sec  = 1
-    healthy_threshold   = 4
-    timeout_sec         = 1
-    unhealthy_threshold = 5
-    response            = ""
-    proxy_header        = "NONE"
-    port                = 6962
-    port_name           = "health-check-port"
-    request             = ""
-    request_path        = "/healthz"
-    host                = "1.2.3.4"
-    enable_log          = false
+module "gce-lb-http" {
+  source  = "terraform-google-modules/lb-http/google"
+  version = "~> 12.0"
+  name    = var.base_name
+  project = var.project_id
+  // TODO(phbnf): come back to this
+  target_tags = ["${var.base_name}-allow-group" ]
+  // TODO(phbnf): come back to this
+  // firewall_networks = [google_compute_network.default.name]
+
+  backends = {
+    default = {
+
+      protocol    = "HTTP"
+      // TODO(phbnf): come back to this
+      port        = 6962
+      port_name   = "http"
+      timeout_sec = 10
+      // TODO(phbnf): come back to this
+      enable_cdn  = false
+
+      health_check = {
+        request_path = "/healthz"
+        response     = "ok"
+        port         = 6962
+        logging      = true
+      }
+
+      // todo(phbnf): come back to this
+      log_config = {
+        enable      = true
+        sample_rate = 1.0
+      }
+
+      groups = [
+        {
+          // todo(phbnf): come back to this, set the load balancing mode etc.
+          group = google_compute_region_instance_group_manager.instance_group_manager.instance_group
+        },
+      ]
+
+      iap_config = {
+        enable = false
+      }
+    }
   }
-
-  backends = [
-    {
-      group       = google_compute_region_instance_group_manager.instance_group_manager.instance_group
-      description = ""
-      failover    = false
-      balancing_mode = "CONNECTION"
-    },
-  ]
 }
