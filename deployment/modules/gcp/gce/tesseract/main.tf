@@ -25,7 +25,7 @@ module "gce_container_tesseract" {
     args = [
       "--logtostderr",
       "--v=3",
-      "--http_endpoint=:6962",
+      "--http_endpoint=:80",
       "--bucket=${var.bucket}",
       "--spanner_db_path=${local.spanner_log_db_path}",
       "--spanner_antispam_db_path=${local.spanner_antispam_db_path}",
@@ -108,7 +108,7 @@ resource "google_compute_health_check" "healthz" {
   http_health_check {
     request_path = "/healthz"
     response     = "ok"
-    port         = 6962
+    port         = 80
   }
 }
 
@@ -137,7 +137,7 @@ resource "google_compute_region_instance_group_manager" "instance_group_manager"
 
   named_port {
     name = "http"
-    port = 6962
+    port = 80 
   }
   
 # TODO(phbnf): re-enable this once we have approval to have custom firewall allowing these probes.
@@ -200,7 +200,7 @@ module "gce-lb-http" {
 
       protocol    = "HTTP"
       // TODO(phbnf): come back to this
-      port        = 6962
+      port        = 80
       port_name   = "http"
       timeout_sec = 10
       // TODO(phbnf): come back to this
@@ -209,7 +209,7 @@ module "gce-lb-http" {
       health_check = {
         request_path = "/healthz"
         response     = "ok"
-        port         = 6962
+        port         = 80
         logging      = true
       }
 
