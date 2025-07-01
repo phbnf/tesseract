@@ -1,0 +1,35 @@
+Incorrect Usage: invalid value "24.061011423899956," for flag -end: parse error
+
+NAME:
+   asciinema cut - Removes a certain range of time frames.
+
+   If no file name is specified as a positional argument, a cast is
+   expected to be served via stdin.
+
+   Once the transformation has been performed, the resulting cast is
+   either written to a file specified in the '--out' flag or to stdout
+   (default).
+
+EXAMPLES:
+   Remove frames from 12.2s to 16.3s from the cast passed in the commands
+   stdin.
+
+     cat 1234.cast | \
+       asciinema-edit cut \
+         --start=12.2 --end=15.3
+
+   Remove the exact frame at timestamp 12.2 from the cast file named
+   1234.cast.
+
+     asciinema-edit cut \
+       --start=12.2 --end=12.2 \
+       1234.cast
+
+USAGE:
+   asciinema cut [command options] [filename]
+
+OPTIONS:
+   --start value  initial frame timestamp (required) (default: 0)
+   --end value    final frame timestamp (required) (default: 0)
+   --out value    file to write the modified contents to
+   
