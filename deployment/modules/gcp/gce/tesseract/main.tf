@@ -50,7 +50,7 @@ module "gce_container_tesseract" {
 resource "google_compute_region_instance_template" "tesseract" {
   // Templates cannot be updated, so we generate a new one every time.
   name_prefix = "tesseract-template-"
-  description = "This template is used to create TesseraCT instances."
+  description = "This template is used to create TesseraCT instances [reload]."
   region      = var.location
 
   lifecycle {
