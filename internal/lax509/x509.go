@@ -18,7 +18,11 @@
 // On macOS and Windows, certificate verification is handled by system APIs, but
 // the package aims to apply consistent validation rules across operating
 // systems.
+<<<<<<< HEAD
 package x509
+=======
+package lax509
+>>>>>>> 77aa0902 (x509 package --> lax509)
 
 import (
 	"bytes"
