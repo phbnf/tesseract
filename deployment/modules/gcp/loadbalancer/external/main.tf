@@ -99,9 +99,9 @@ resource "google_compute_url_map" "urlmap" {
 
       path_rule {
         paths = [
-          "/ct/v1/add-prechain",
-          "/ct/v1/add-chain",
-          "/ct/v1/get-roots",
+          "/${log_name.value}.staging.ct.transparency.dev/ct/v1/add-prechain",
+          "/${log_name.value}.staging.ct.transparency.dev/ct/v1/add-chain",
+          "/${log_name.value}.staging.ct.transparency.dev/ct/v1/get-roots",
         ]
         service = module.gce-lb-http.backend_services["${log_name.value}-backend"].self_link
       }
