@@ -5,7 +5,7 @@
 [![Slack Status](https://img.shields.io/badge/Slack-Chat-blue.svg)](https://transparency-dev.slack.com/)
 
 TesseraCT is a [Certificate Transparency (CT)](https://certificate.transparency.dev/)
-log implementation. It implements [static-ct-api](https://c2sp.org/static-ct-api)
+log implementation. It implements c2sp/static-ct-api
 using the [Tessera](https://github.com/transparency-dev/tessera)
 library to store data, and is aimed at running production-grade CT logs.
 
