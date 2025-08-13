@@ -172,9 +172,9 @@ depend on them
    [ctlog](./ctlog.go), [storage](./storage/), ([internal](./internal/))
 1. Documentation
      <!--Please, keep this in sync with ./docs/README.md -->
-     - [Configuration](./docs/configuration.md)
-     - [Performance](./docs/performance.md)
-     - [Architecture](./docs/architecture.md)
+     - [Configuration ✀](./docs/configuration.md)
+     - [Performance ✻](./docs/performance.md)
+     - [Architecture ↗](./docs/architecture.md)
      - [Deployment](./deployment/)
      - Codelabs
        - [GCP](./deployment/live/gcp/test/)
