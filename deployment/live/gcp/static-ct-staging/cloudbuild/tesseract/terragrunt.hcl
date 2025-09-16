@@ -12,6 +12,7 @@ locals {
     "deployment/live/gcp/static-ct-staging/logs/arche2025h1",
     "deployment/live/gcp/static-ct-staging/logs/arche2025h2",
     "deployment/live/gcp/static-ct-staging/logs/arche2026h1",
+    "deployment/live/gcp/static-ct-staging/logs/traininglog",
   ]
 }
 
