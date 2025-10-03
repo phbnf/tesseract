@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -127,6 +128,33 @@ func newChainValidator(cfg ChainValidationConfig) (ct.ChainValidator, error) {
 type NotBeforeRL struct {
 	AgeThreshold time.Duration
 	RateLimit    float64
+}
+
+// NotBeforeRLFromFlagValue parses a string flag to create a NotBeforeRL.
+// The flag format is "<go duration>:<rate limit per s>"
+func NotBeforeRLFromFlagValue(flagValue string) (*NotBeforeRL, error) {
+	if flagValue == "" {
+		return nil, nil
+	}
+	bits := strings.Split(flagValue, ":")
+	if len(bits) != 2 {
+		return nil, fmt.Errorf("invalid format, got %q, want <duration>:<limit>", flagValue)
+	}
+	a, err := time.ParseDuration(bits[0])
+	if err != nil {
+		return nil, fmt.Errorf("invalid age duration %q: %v", bits[0], err)
+	}
+	if a <= 0 {
+		return nil, fmt.Errorf("invalid age duration, got %q, want >0", a)
+	}
+	l, err := strconv.ParseFloat(bits[1], 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid rate limit %q: %v", bits[1], err)
+	}
+	if l <= 0 {
+		return nil, fmt.Errorf("invalid rate limit, got %.2f, want >0", l)
+	}
+	return &NotBeforeRL{AgeThreshold: a, RateLimit: l}, nil
 }
 
 type LogHandlerOpts struct {

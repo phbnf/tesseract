@@ -15,6 +15,7 @@
 package tesseract
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -141,6 +142,72 @@ func TestNewCertValidationOpts(t *testing.T) {
 			}
 			if err == nil && vc == nil {
 				t.Error("err and ValidatedLogConfig are both nil")
+			}
+		})
+	}
+}
+
+func TestNotBeforeRLFromFlagValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		flagValue string
+		want      *NotBeforeRL
+		wantErr   bool
+	}{
+		{
+			name:      "ok",
+			flagValue: "10m:10",
+			want: &NotBeforeRL{
+				AgeThreshold: 10 * time.Minute,
+				RateLimit:    10,
+			},
+			wantErr: false,
+		},
+		{
+			name:      "wrong-format",
+			flagValue: "10m10",
+			wantErr:   true,
+		},
+		{
+			name:      "not-a-duration",
+			flagValue: "10:10",
+			wantErr:   true,
+		},
+		{
+			name:      "not-a-rate",
+			flagValue: "10:a",
+			wantErr:   true,
+		},
+		{
+			name:      "null-duration",
+			flagValue: "0m:10",
+			wantErr:   true,
+		},
+		{
+			name:      "negative-duration",
+			flagValue: "-10m:10",
+			wantErr:   true,
+		},
+		{
+			name:      "negative-rate",
+			flagValue: "10m:-10",
+			wantErr:   true,
+		},
+		{
+			name:      "null-rate",
+			flagValue: "10m:0",
+			wantErr:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NotBeforeRLFromFlagValue(tt.flagValue)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NotBeforeRLFromFlagValue() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("NotBeforeRLFromFlagValue() = %v, want %v", got, tt.want)
 			}
 		})
 	}
