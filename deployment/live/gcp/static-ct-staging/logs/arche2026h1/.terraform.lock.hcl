@@ -2,8 +2,8 @@
 # Manual edits may be lost in future updates.
 
 provider "registry.opentofu.org/hashicorp/google" {
-  version     = "6.43.0"
-  constraints = ">= 4.26.0, 6.43.0, < 7.0.0"
+  version     = "6.50.0"
+  constraints = ">= 4.26.0, 6.50.0, < 7.0.0"
   hashes = [
     "h1:B//A50Vkm7cofa2Yl9Q6xEWKoBufHvuPMHQu5ociQeY=",
     "zh:0940fc7ffbe3c4a9ce7715d9859b996a821bfb454fb4faee7dc28c9a7d0aaefc",
