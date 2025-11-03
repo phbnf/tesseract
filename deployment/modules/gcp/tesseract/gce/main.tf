@@ -1,7 +1,3 @@
-terraform {
-  backend "gcs" {}
-}
-
 module "storage" {
   source = "../../storage"
 
