@@ -13,6 +13,7 @@ module "secretmanager" {
   source = "../../secretmanager"
 
   base_name = var.base_name
+  project_id    = var.project_id
 }
 
 module "gce" {

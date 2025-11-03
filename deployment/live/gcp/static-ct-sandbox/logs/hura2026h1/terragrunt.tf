@@ -1,15 +1,15 @@
-terraform {
-  source = "${get_repo_root()}/deployment/modules/gcp//tesseract/gce"
-}
+module "log" {
+  source = "../../../../../../deployment/modules/gcp/tesseract/gce"
 
-locals {
-  env                                        = include.root.locals.env
-  docker_env                                 = local.env
-  base_name                                  = include.root.locals.base_name
-  origin_suffix                              = include.root.locals.origin_suffix
+  env                                        = "sandbox"
+  docker_env                                 = "sandbox"
+  base_name                                  = "hura2026h1"
+  project_id                                 = "static-ct-sandbox"
+  location                                   = "us-central1"
+  origin_suffix                              = ".sandbox.ct.transparency.dev"
   not_after_start                            = "2026-01-01T00:00:00Z"
   not_after_limit                            = "2026-07-01T00:00:00Z"
-  server_docker_image                        = "${include.root.locals.location}-docker.pkg.dev/${include.root.locals.project_id}/docker-${local.env}/tesseract-gcp:${include.root.locals.docker_container_tag}"
+  server_docker_image                        = "us-central1-docker.pkg.dev/static-ct-sandbox/docker-sandbox/tesseract-gcp:latest"
   spanner_pu                                 = 500
   trace_fraction                             = 0.1
   create_internal_load_balancer              = true
@@ -20,12 +20,3 @@ locals {
   ]
 }
 
-include "root" {
-  path   = find_in_parent_folders("root.tf")
-  expose = true
-}
-
-inputs = merge(
-  local,
-  include.root.locals,
-)

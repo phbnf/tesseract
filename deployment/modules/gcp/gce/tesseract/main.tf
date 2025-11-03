@@ -7,6 +7,11 @@ terraform {
   }
 }
 
+provider "google" {
+  project = var.project_id
+  region  = var.project_region
+}
+
 locals {
   # TODO(phbnf): use a different service account
   tesseract_service_account_id = var.env == "" ? "tesseract-sa" : "tesseract-${var.env}-sa"
