@@ -7,6 +7,7 @@ module "gce_ilb" {
   version     = "~> 7.0"
   region      = var.location
   name        = "${var.base_name}-ilb"
+  project     = var.project_id
   ports       = ["80"]
   source_tags = []
   // TODO(phbnf): come back to this, it doesn't match with the VM tags.
