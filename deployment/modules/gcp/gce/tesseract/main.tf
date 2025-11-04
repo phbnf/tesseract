@@ -1,17 +1,3 @@
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "6.50.0"
-    }
-  }
-}
-
-provider "google" {
-  project = var.project_id
-  region  = var.project_region
-}
-
 locals {
   # TODO(phbnf): use a different service account
   tesseract_service_account_id = var.env == "" ? "tesseract-sa" : "tesseract-${var.env}-sa"

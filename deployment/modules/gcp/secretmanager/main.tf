@@ -1,18 +1,3 @@
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "6.50.0"
-    }
-  }
-}
-
-# THIS IS THE IMPORTANT PART:
-provider "google" {
-  project = var.project_id
-  region  = var.project_region
-}
-
 # Secret Manager
 
 resource "google_project_service" "secretmanager_googleapis_com" {
@@ -31,7 +16,6 @@ resource "google_project_service" "secretmanager_googleapis_com" {
 resource "tls_private_key" "tesseract_ecdsa_p256" {
   algorithm   = "ECDSA"
   ecdsa_curve = "P256"
-  project            = var.project_id
 }
 
 resource "google_secret_manager_secret" "tesseract_ecdsa_p256_public_key" {

@@ -1,17 +1,3 @@
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "6.50.0"
-    }
-  }
-}
-
-provider "google" {
-  project = var.project_id
-  region  = var.project_region
-}
-
 locals {
   tesseract_url = "http://${var.base_name}.${var.base_name}-ilb.il4.${var.location}.lb.${var.project_id}.internal" // will be created by ilb
 }
