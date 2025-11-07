@@ -18,5 +18,6 @@ module "log" {
   additional_signer_private_key_secret_names = [
   //  "projects/781477119959/secrets/arche2026h1-ed25519-private-key/versions/1"
   ]
+  ephemeral                                  = true
 }
 
