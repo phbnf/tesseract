@@ -269,6 +269,14 @@ func (cv chainValidator) validate(chain []*x509.Certificate) ([]*x509.Certificat
 		return nil, fmt.Errorf("no path to root found when trying to validate chains: %s", strings.Join(crtsh, ", "))
 	}
 
+	for _, chain := range verifiedChains {
+		crtshchain := make([]string, len(chain))
+		for i, c := range chain {
+			crtshchain[i] = fmt.Sprintf("https://crt.sh/?sha256=%x", sha256.Sum256(c.Raw))
+		}
+		fmt.Println(strings.Join(crtshchain, ", "))
+	}
+
 	// Verify might have found multiple paths to roots. Now we check that we have a path that
 	// uses all the certs in the order they were submitted so as to comply with RFC 6962
 	// requirements detailed in Section 3.1.

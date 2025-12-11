@@ -87,7 +87,8 @@ func (p *PEMCertPool) AppendCertsFromPEM(pemCerts []byte) (ok bool) {
 
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			klog.Warningf("error parsing PEM certificate: %v", err)
+			crtsh := fmt.Sprintf("https://crt.sh/?sha256=%x", sha256.Sum256(block.Bytes))
+			klog.Warningf("error parsing PEM certificate: %v, %q", err, crtsh)
 			return false
 		}
 
