@@ -128,10 +128,21 @@ func main() {
 		klog.Exit("Must specify either local key files (--signer_public_key_file and --signer_private_key_file) or secrets manager keys (--signer_public_key_secret_name and --signer_private_key_secret_name)")
 	}
 
+	awsCfg := storageConfigFromFlags()
+	fetchedRootsBackupStorage, err := aws.NewRootsStorage(ctx, aws.Options{
+		Bucket:    *bucket,
+		SDKConfig: awsCfg.SDKConfig,
+		S3Options: awsCfg.S3Options,
+	})
+	if err != nil {
+		klog.Exitf("failed to initialize S3 backup storage for remotely fetched roots: %v", err)
+	}
+
 	chainValidationConfig := tesseract.ChainValidationConfig{
 		RootsPEMFile:             *rootsPemFile,
 		RootsRemoteFetchURL:      *rootsRemoteFetchURL,
 		RootsRemoteFetchInterval: *rootsRemoteFetchInterval,
+		RootsRemoteFetchBackup:   fetchedRootsBackupStorage,
 		RejectExpired:            *rejectExpired,
 		RejectUnexpired:          *rejectUnexpired,
 		ExtKeyUsages:             *extKeyUsages,
