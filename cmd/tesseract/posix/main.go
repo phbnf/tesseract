@@ -107,10 +107,19 @@ func main() {
 	defer shutdownOTel(ctx)
 	signer := signerFromFlags()
 
+	if err := posix.MkdirAll(filepath.Join(*storageDir, "roots"), posix.DirPerm); err != nil {
+		klog.Exitf("failed to initilize posix roots storage: %v", err)
+	}
+	remoteRootsStorage, err := posix.NewRemoteRootsStorage(ctx, *storageDir)
+	if err != nil {
+		klog.Exitf("failed to initialize posix roots storage: %v", err)
+	}
+
 	chainValidationConfig := tesseract.ChainValidationConfig{
 		RootsPEMFile:             *rootsPemFile,
 		RootsRemoteFetchURL:      *rootsRemoteFetchURL,
 		RootsRemoteFetchInterval: *rootsRemoteFetchInterval,
+		RootsRemoteStore:         remoteRootsStorage,
 		RejectExpired:            *rejectExpired,
 		RejectUnexpired:          *rejectUnexpired,
 		ExtKeyUsages:             *extKeyUsages,

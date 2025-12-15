@@ -55,6 +55,12 @@ type IssuerStorage interface {
 	AddIssuersIfNotExist(ctx context.Context, kv []KV) error
 }
 
+// RootsStorage stores root certificates under their hex encoded sha256.
+type RootsStorage interface {
+	AddIssuersIfNotExist(ctx context.Context, kv []KV) error
+	LoadAll(ctx context.Context) ([]KV, error)
+}
+
 type CTStorageOptions struct {
 	Appender      *tessera.Appender
 	Reader        tessera.LogReader
@@ -66,6 +72,8 @@ type CTStorageOptions struct {
 type CTStorage struct {
 	storeData     func(context.Context, *ctonly.Entry) tessera.IndexFuture
 	storeIssuers  func(context.Context, []KV) error
+	StoreRoots    func(context.Context, []KV) error
+	LoadRoots     func(ctx context.Context) ([]KV, error)
 	reader        tessera.LogReader
 	awaiter       *tessera.PublicationAwaiter
 	enableAwaiter bool

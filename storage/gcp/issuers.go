@@ -17,6 +17,7 @@ package gcp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +29,7 @@ import (
 	"github.com/transparency-dev/tesseract/storage"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -61,9 +63,54 @@ func NewIssuerStorage(ctx context.Context, bucket string, gcsClient *gcs.Client)
 	return r, nil
 }
 
+// NewRemoteRootsStorage creates a new IssuersStorage to store roots.
+//
+// The specified bucket must exist or an error will be returned.
+func NewRemoteRootsStorage(ctx context.Context, bucket string, gcsClient *gcs.Client) (*IssuersStorage, error) {
+	if gcsClient == nil {
+		c, err := gcs.NewClient(ctx, gcs.WithJSONReads())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create GCS client: %v", err)
+		}
+		gcsClient = c
+	}
+
+	r := &IssuersStorage{
+		bucket:      gcsClient.Bucket(bucket),
+		prefix:      "roots/",
+		contentType: staticct.IssuersContentType,
+	}
+
+	return r, nil
+}
+
 // keyToObjName converts bytes to a GCS object name.
 func (s *IssuersStorage) keyToObjName(key []byte) string {
 	return path.Join(s.prefix, string(key))
+}
+
+func (s *IssuersStorage) LoadAll(ctx context.Context) ([]storage.KV, error) {
+	errs := []error(nil)
+	kvs := []storage.KV{}
+	it := s.bucket.Objects(ctx, &gcs.Query{Prefix: "roots/"})
+	for {
+		attr, err := it.Next()
+		if err != nil {
+			if err == iterator.Done {
+				break
+			}
+		}
+		r, err := s.bucket.Object(attr.Name).NewReader(ctx)
+		if err != nil {
+			errs = append(errs, err)
+		}
+		root, err := io.ReadAll(r)
+		if err != nil {
+			errs = append(errs, err)
+		}
+		kvs = append(kvs, storage.KV{K: []byte(attr.Name), V: root})
+	}
+	return kvs, errors.Join(errs...)
 }
 
 // AddIssuers stores Issuers values under their Key if there isn't an object under Key already.

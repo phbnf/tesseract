@@ -43,6 +43,40 @@ func NewIssuerStorage(ctx context.Context, dir string) (*IssuersStorage, error) 
 	return r, nil
 }
 
+// NewRemoteRootsStorage creates a new POSIX based roots storage.
+//
+// Root certs will be stored in a directory called "roots" within the provided root directory.
+func NewRemoteRootsStorage(ctx context.Context, dir string) (*IssuersStorage, error) {
+	r := &IssuersStorage{
+		dir: filepath.Join(dir, "roots/"),
+	}
+
+	return r, nil
+}
+
+func (s *IssuersStorage) LoadAll(ctx context.Context) ([]storage.KV, error) {
+	files, err := os.ReadDir(s.dir)
+	if err != nil {
+		return nil, fmt.Errorf("os.ReadDir(%q): %v", s.dir, err)
+	}
+	kvs := []storage.KV{}
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		p := filepath.Join(s.dir, f.Name())
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read existing file %q: %v", p, err)
+		}
+		kvs = append(kvs, storage.KV{
+			K: []byte(f.Name()),
+			V: b,
+		})
+	}
+	return kvs, nil
+}
+
 // AddIssuers stores Issuers values under their Key if there isn't an object under Key already.
 func (s *IssuersStorage) AddIssuersIfNotExist(ctx context.Context, kv []storage.KV) error {
 	errs := make([]error, 0)

@@ -17,8 +17,10 @@ package tesseract
 import (
 	"context"
 	"crypto"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -46,7 +48,8 @@ type ChainValidationConfig struct {
 	// RejectExpired controls if true then the certificate validity period will be
 	// checked against the current time during the validation of submissions.
 	// This will cause expired certificates to be rejected.
-	RejectExpired bool
+	RejectExpired    bool
+	RootsRemoteStore storage.RootsStorage
 	// RejectUnexpired controls if TesseraCT rejects certificates that are
 	// either currently valid or not yet valid.
 	// TODO(phboneff): evaluate whether we need to keep this one.
@@ -126,6 +129,16 @@ func newChainValidator(ctx context.Context, cfg ChainValidationConfig) (ct.Chain
 		}
 	}
 
+	if cfg.RootsRemoteStore != nil {
+		kvs, err := cfg.RootsRemoteStore.LoadAll(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load remote roots from remote roots store: %v", err)
+		}
+		for _, kv := range kvs {
+			roots.AppendCertsFromPEM(kv.V)
+		}
+	}
+
 	if cfg.RootsRemoteFetchInterval > 0 && cfg.RootsRemoteFetchURL != "" {
 		fetchAndAppendRemoteRoots := func() {
 			rr, err := ccadb.Fetch(ctx, cfg.RootsRemoteFetchURL, []string{ccadb.ColPEM})
@@ -136,6 +149,11 @@ func newChainValidator(ctx context.Context, cfg ChainValidationConfig) (ct.Chain
 				if len(r) < 1 {
 					klog.Errorf("Couldn't parse root from %q: empty row", cfg.RootsRemoteFetchURL)
 					continue
+				}
+				sha := sha256.Sum256(r[0])
+				key := []byte(hex.EncodeToString(sha[:]))
+				if err := cfg.RootsRemoteStore.AddIssuersIfNotExist(ctx, []storage.KV{{K: key, V: r[0]}}); err != nil {
+					klog.Errorf("Couldn't store roots %q: %v", string(key), err)
 				}
 				roots.AppendCertsFromPEM(r[0])
 			}
