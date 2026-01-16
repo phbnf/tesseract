@@ -141,7 +141,8 @@ func newChainValidator(ctx context.Context, cfg ChainValidationConfig) (ct.Chain
 				}
 				pems = append(pems, r[0])
 			}
-			roots.AppendCertsFromPEMs(pems...)
+			added := roots.AppendCertsFromPEMs(pems...)
+			klog.Infof("Fetched %d roots, and added %d from %q", len(pems), added, cfg.RootsRemoteFetchURL)
 		}
 
 		fetchAndAppendRemoteRoots()
