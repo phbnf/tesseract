@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -51,7 +52,7 @@ type Options struct {
 	S3Options func(*s3.Options)
 }
 
-// NewIssuerStorage creates a new IssuerStorage.
+// NewIssuerStorage creates a new S3 based issuer storage.
 //
 // The specified bucket must exist or an error will be returned.
 func NewIssuerStorage(ctx context.Context, opts Options) (*IssuersStorage, error) {
@@ -85,13 +86,94 @@ func NewIssuerStorage(ctx context.Context, opts Options) (*IssuersStorage, error
 	return r, nil
 }
 
+// NewIssuerStorage creates a new S3 based roots storage.
+//
+// The specified bucket must exist or an error will be returned.
+func NewRootsStorage(ctx context.Context, opts Options) (*IssuersStorage, error) {
+	var sdkConfig aws.Config
+	if opts.SDKConfig != nil {
+		sdkConfig = *opts.SDKConfig
+	} else {
+		var err error
+		sdkConfig, err = config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load default AWS configuration: %v", err)
+		}
+		// We need a non-nil options func to pass in to s3.NewFromConfig below or it'll panic, so
+		// we'll use a "do nothing" placeholder.
+		opts.S3Options = func(_ *s3.Options) {}
+	}
+
+	s3Client := s3.NewFromConfig(sdkConfig, opts.S3Options)
+	// Check that the bucket exists and that we have access to it.
+	if _, err := s3Client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(opts.Bucket)}); err != nil {
+		return nil, fmt.Errorf("error checking bucket: %w", err)
+	}
+
+	r := &IssuersStorage{
+		s3Client:    s3Client,
+		bucket:      opts.Bucket,
+		prefix:      storage.RootsPrefix,
+		contentType: staticct.IssuersContentType,
+	}
+
+	return r, nil
+}
+
 // keyToObjName converts bytes to an S3 object name.
 func (s *IssuersStorage) keyToObjName(key []byte) string {
 	return path.Join(s.prefix, string(key))
 }
 
+// keyToObjName converts an S3 object name to a key.
+func (s *IssuersStorage) objNameToKey(objName string) []byte {
+	return []byte(strings.TrimPrefix(objName, s.prefix))
+}
+
+// LoadAll loads all the values in the bucket under the prefix.
+func (s *IssuersStorage) LoadAll(ctx context.Context) ([]storage.KV, error) {
+	errs := []error(nil)
+	kvs := []storage.KV{}
+
+	paginator := s3.NewListObjectsV2Paginator(s.s3Client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(s.bucket),
+		Prefix: aws.String(s.prefix),
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			// If listing fails, return what we have so far plus the error.
+			return kvs, fmt.Errorf("failed to list objects in bucket %q prefix %q: %w", s.bucket, s.prefix, err)
+		}
+
+		for _, obj := range page.Contents {
+			resp, err := s.s3Client.GetObject(ctx, &s3.GetObjectInput{
+				Bucket: aws.String(s.bucket),
+				Key:    obj.Key,
+			})
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to get object %q: %w", *obj.Key, err))
+				continue
+			}
+
+			data, err := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to read object body %q: %w", *obj.Key, err))
+				continue
+			}
+
+			kvs = append(kvs, storage.KV{K: s.objNameToKey(*obj.Key), V: data})
+		}
+	}
+
+	return kvs, errors.Join(errs...)
+}
+
 // AddIssuers stores Issuers values under their Key if there isn't an object under Key already.
-func (s *IssuersStorage) AddIssuersIfNotExist(ctx context.Context, kv []storage.KV) error {
+func (s *IssuersStorage) AddIfNotExist(ctx context.Context, kv []storage.KV) error {
 	eg := errgroup.Group{}
 	for _, kv := range kv {
 		objName := s.keyToObjName(kv.K)

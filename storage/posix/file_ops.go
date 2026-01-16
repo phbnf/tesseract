@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	dirPerm  = 0o755
+	DirPerm  = 0o755
 	filePerm = 0o644
 )
 
@@ -61,9 +61,9 @@ func syncDir(dir string, op func() error) (err error) {
 	return nil
 }
 
-// mkdirAll is a reimplementation of os.mkdirAll but where we fsync the parent directory/ies
+// MkdirAll is a reimplementation of os.MkdirAll but where we fsync the parent directory/ies
 // we modify.
-func mkdirAll(name string, perm os.FileMode) error {
+func MkdirAll(name string, perm os.FileMode) error {
 	name = strings.TrimSuffix(name, string(filepath.Separator))
 	if name == "" {
 		return nil
@@ -78,7 +78,7 @@ func mkdirAll(name string, perm os.FileMode) error {
 		// we'll recurse and create the parent directory if necessary.
 		// Don't return an error if someone else managed to get in and create the directory before us, though.
 		if dir != "" {
-			if err := mkdirAll(dir, perm); err != nil && !errors.Is(err, os.ErrExist) {
+			if err := MkdirAll(dir, perm); err != nil && !errors.Is(err, os.ErrExist) {
 				return err
 			}
 		}
@@ -110,7 +110,7 @@ func mkdirAll(name string, perm os.FileMode) error {
 // data & close the file.
 func createEx(name string, d []byte) error {
 	dir := filepath.Dir(name)
-	if err := mkdirAll(dir, dirPerm); err != nil {
+	if err := MkdirAll(dir, DirPerm); err != nil {
 		return fmt.Errorf("failed to make directory structure: %w", err)
 	}
 	return syncDir(dir, func() error {

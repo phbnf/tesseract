@@ -17,10 +17,12 @@ package gcp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"path"
+	"strings"
 
 	gcs "cloud.google.com/go/storage"
 	"github.com/google/go-cmp/cmp"
@@ -28,6 +30,7 @@ import (
 	"github.com/transparency-dev/tesseract/storage"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -40,7 +43,7 @@ type IssuersStorage struct {
 	contentType string
 }
 
-// NewIssuerStorage creates a new GCSStorage.
+// NewIssuerStorage creates a new GCS based issuer storage.
 //
 // The specified bucket must exist or an error will be returned.
 func NewIssuerStorage(ctx context.Context, bucket string, gcsClient *gcs.Client) (*IssuersStorage, error) {
@@ -67,13 +70,79 @@ func NewIssuerStorage(ctx context.Context, bucket string, gcsClient *gcs.Client)
 	return r, nil
 }
 
+// NewRootsStorage creates a new GCS based roots storage.
+//
+// The specified bucket must exist or an error will be returned.
+func NewRootsStorage(ctx context.Context, bucket string, gcsClient *gcs.Client) (*IssuersStorage, error) {
+	if gcsClient == nil {
+		c, err := gcs.NewClient(ctx, gcs.WithJSONReads())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create GCS client: %v", err)
+		}
+		gcsClient = c
+	}
+
+	bkt := gcsClient.Bucket(bucket)
+	// Check that the bucket exists and that we have access to it.
+	if _, err := bkt.Attrs(ctx); err != nil {
+		return nil, fmt.Errorf("Bucket.Attrs: %w", err)
+	}
+
+	r := &IssuersStorage{
+		bucket:      gcsClient.Bucket(bucket),
+		prefix:      storage.RootsPrefix,
+		contentType: staticct.IssuersContentType,
+	}
+
+	return r, nil
+}
+
 // keyToObjName converts bytes to a GCS object name.
 func (s *IssuersStorage) keyToObjName(key []byte) string {
 	return path.Join(s.prefix, string(key))
 }
 
-// AddIssuers stores Issuers values under their Key if there isn't an object under Key already.
-func (s *IssuersStorage) AddIssuersIfNotExist(ctx context.Context, kv []storage.KV) error {
+// objNameToKey converts a GCS object name to a key.
+func (s *IssuersStorage) objNameToKey(objName string) []byte {
+	return []byte(strings.TrimPrefix(objName, s.prefix))
+}
+
+// LoadAll loads all the values in the bucket under the prefix.
+func (s *IssuersStorage) LoadAll(ctx context.Context) ([]storage.KV, error) {
+	errs := []error(nil)
+	kvs := []storage.KV{}
+
+	it := s.bucket.Objects(ctx, &gcs.Query{Prefix: s.prefix})
+	for {
+		attr, err := it.Next()
+		if err != nil {
+			if err == iterator.Done {
+				break
+			}
+			return nil, fmt.Errorf("failed to list objects in bucket %q under prefix %q: %v", s.bucket.BucketName(), s.prefix, err)
+		}
+
+		r, err := s.bucket.Object(attr.Name).NewReader(ctx)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to get object %q: %v", attr.Name, err))
+			continue
+		}
+
+		root, err := io.ReadAll(r)
+		_ = r.Close()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to read object %q: %v", attr.Name, err))
+			continue
+		}
+
+		kvs = append(kvs, storage.KV{K: s.objNameToKey(attr.Name), V: root})
+	}
+
+	return kvs, errors.Join(errs...)
+}
+
+// AddIfNotExist stores Issuers values under their Key if there isn't an object under Key already.
+func (s *IssuersStorage) AddIfNotExist(ctx context.Context, kv []storage.KV) error {
 	eg := errgroup.Group{}
 	for _, kv := range kv {
 		eg.Go(func() error {
