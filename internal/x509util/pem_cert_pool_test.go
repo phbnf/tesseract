@@ -22,43 +22,55 @@ import (
 	"github.com/transparency-dev/tesseract/internal/x509util"
 )
 
-func TestLoadSingleCertFromPEMs(t *testing.T) {
-	for _, p := range []string{pemCACert, pemCACertWithOtherStuff, pemCACertDuplicated} {
-		pool := x509util.NewPEMCertPool()
-
-		ok := pool.AppendCertsFromPEMs([]byte(p))
-		if !ok {
-			t.Fatal("Expected to append a certificate ok")
-		}
-		if got, want := len(pool.Subjects()), 1; got != want {
-			t.Fatalf("Got %d cert(s) in the pool, expected %d", got, want)
-		}
+func TestAppendCertsFromPEMs(t *testing.T) {
+	tests := []struct {
+		name string
+		pems [][]byte
+		want int
+	}{
+		{
+			name: "single-cert-from-pem",
+			pems: [][]byte{[]byte(pemCACert)},
+			want: 1,
+		},
+		{
+			name: "single-cert-with-other-stuff",
+			pems: [][]byte{[]byte(pemCACertWithOtherStuff)},
+			want: 1,
+		},
+		{
+			name: "duplicate-cert-from-pems",
+			pems: [][]byte{[]byte(pemCACertDuplicated)},
+			want: 1,
+		},
+		{
+			name: "multiple-certs-from-pem",
+			pems: [][]byte{[]byte(pemCACertMultiple)},
+			want: 2,
+		},
+		{
+			name: "multiple-certs-from-pems",
+			pems: [][]byte{[]byte(pemCACert), []byte(pemCACertMultiple)},
+			want: 2,
+		},
+		{
+			name: "empty",
+			pems: [][]byte{},
+			want: 0,
+		},
+		{
+			name: "bad-and-empty-from-pems",
+			pems: [][]byte{[]byte(pemUnknownBlockType), []byte(pemCACertBad), []byte(pemCACert)},
+			want: 1,
+		},
 	}
-}
-
-func TestBadOrEmptyCertificateRejected(t *testing.T) {
-	for _, p := range []string{pemUnknownBlockType, pemCACertBad} {
-		pool := x509util.NewPEMCertPool()
-
-		ok := pool.AppendCertsFromPEMs([]byte(p))
-		if ok {
-			t.Fatal("Expected appending no certs")
-		}
-		if got, want := len(pool.Subjects()), 0; got != want {
-			t.Fatalf("Got %d cert(s) in pool, expected %d", got, want)
-		}
-	}
-}
-
-func TestLoadMultipleCertsFromPEM(t *testing.T) {
-	pool := x509util.NewPEMCertPool()
-
-	ok := pool.AppendCertsFromPEMs([]byte(pemCACertMultiple))
-	if !ok {
-		t.Fatal("Rejected valid multiple certs")
-	}
-	if got, want := len(pool.Subjects()), 2; got != want {
-		t.Fatalf("Got %d certs in pool, expected %d", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := x509util.NewPEMCertPool()
+			if got := p.AppendCertsFromPEMs(tt.pems...); got != tt.want {
+				t.Errorf("AppendCertsFromPEMs() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

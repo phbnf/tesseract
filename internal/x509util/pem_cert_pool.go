@@ -55,30 +55,31 @@ func NewPEMCertPool() *PEMCertPool {
 // It uses fingerprint to weed out duplicates and identify new certificates.
 // If any new certificates is detected, the underlying certPool is cloned,
 // new certs are added, and then pools are swapped.
-func (p *PEMCertPool) AddCerts(certs []*x509.Certificate) {
+func (p *PEMCertPool) AddCerts(certs []*x509.Certificate) int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	newCerts := []*x509.Certificate{}
+	newCerts := make(map[[sha256.Size]byte]*x509.Certificate)
 	for _, cert := range certs {
 		fingerprint := sha256.Sum256(cert.Raw)
 		_, ok := p.fingerprintToCertMap[fingerprint]
 
 		if !ok {
-			newCerts = append(newCerts, cert)
+			newCerts[fingerprint] = cert
 		}
 	}
 
+	oldN := len(p.rawCerts)
 	if len(newCerts) > 0 {
 		newPool := p.certPool.Clone()
-		for _, cert := range newCerts {
-			fingerprint := sha256.Sum256(cert.Raw)
+		for fingerprint, cert := range newCerts {
 			p.fingerprintToCertMap[fingerprint] = *cert
 			p.rawCerts = append(p.rawCerts, cert)
 			newPool.AddCert(cert)
 		}
 		p.certPool = newPool
 	}
+	return len(p.rawCerts) - oldN
 }
 
 // Included indicates whether the given cert is included in the pool.
@@ -91,9 +92,9 @@ func (p *PEMCertPool) Included(cert *x509.Certificate) bool {
 }
 
 // AppendCertsFromPEMs adds certs to the pool from byte slices assumed to contain PEM encoded data.
-// Skips over non certificate blocks in the data. Returns true if all certificates in the
-// data were parsed and added to the pool successfully and at least one certificate was found.
-func (p *PEMCertPool) AppendCertsFromPEMs(pems ...[]byte) (ok bool) {
+// Skips over non certificate blocks in the data, and certificates that don't parse.
+// Returns the total number of certificates that were parsed and added to the pool.
+func (p *PEMCertPool) AppendCertsFromPEMs(pems ...[]byte) int {
 	certs := []*x509.Certificate{}
 	for _, pemCerts := range pems {
 		for len(pemCerts) > 0 {
@@ -108,17 +109,16 @@ func (p *PEMCertPool) AppendCertsFromPEMs(pems ...[]byte) (ok bool) {
 
 			cert, err := x509.ParseCertificate(block.Bytes)
 			if err != nil {
-				klog.Warningf("error parsing PEM certificate: %v", err)
-				return false
+				crtsh := fmt.Sprintf("https://crt.sh/?sha256=%x", sha256.Sum256(block.Bytes))
+				klog.Warningf("error parsing PEM certificate %s: %v", crtsh, err)
+				continue
 			}
 
 			certs = append(certs, cert)
-			ok = true
 		}
 	}
-	p.AddCerts(certs)
 
-	return
+	return p.AddCerts(certs)
 }
 
 // AppendCertsFromPEMFile adds certs from a file that contains concatenated PEM data.
@@ -128,7 +128,7 @@ func (p *PEMCertPool) AppendCertsFromPEMFile(pemFile string) error {
 		return fmt.Errorf("failed to load PEM certs file: %v", err)
 	}
 
-	if !p.AppendCertsFromPEMs(pemData) {
+	if p.AppendCertsFromPEMs(pemData) == 0 {
 		return errors.New("failed to parse PEM certs file")
 	}
 	return nil
