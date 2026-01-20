@@ -526,11 +526,7 @@ func getRoots(ctx context.Context, opts *HandlerOptions, log *log, w http.Respon
 	defer span.End()
 
 	// Pull out the raw certificates from the parsed versions
-	// TODO(phbnf): precompute the answer
-	rawCerts := make([][]byte, 0, len(log.chainValidator.Roots()))
-	for _, cert := range log.chainValidator.Roots() {
-		rawCerts = append(rawCerts, cert.Raw)
-	}
+	rawCerts := log.chainValidator.RootsBytes()
 
 	jsonMap := make(map[string]any)
 	jsonMap[jsonMapKeyCertificates] = rawCerts
