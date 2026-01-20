@@ -317,6 +317,10 @@ func (cv chainValidator) Roots() []*x509.Certificate {
 	return cv.trustedRoots.RawCertificates()
 }
 
+func (cv chainValidator) RootsBytes() [][]byte {
+	return cv.trustedRoots.RawCertificatesBytes()
+}
+
 func chainsEquivalent(inChain []*x509.Certificate, verifiedChain []*x509.Certificate) bool {
 	// The verified chain includes a root, but the input chain may or may not include a
 	// root (RFC 6962 s4.1/ s4.2 "the last [certificate] is either the root certificate

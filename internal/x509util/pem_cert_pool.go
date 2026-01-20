@@ -38,6 +38,7 @@ type PEMCertPool struct {
 	// maps from sha-256 to certificate, used for dup detection
 	fingerprintToCertMap map[[sha256.Size]byte]x509.Certificate
 	rawCerts             []*x509.Certificate
+	rawCertsBytes        [][]byte
 	certPool             *lax509.CertPool
 }
 
@@ -74,6 +75,7 @@ func (p *PEMCertPool) AddCerts(certs []*x509.Certificate) int {
 		for fingerprint, cert := range newCerts {
 			p.fingerprintToCertMap[fingerprint] = *cert
 			p.rawCerts = append(p.rawCerts, cert)
+			p.rawCertsBytes = append(p.rawCertsBytes, cert.Raw)
 			newPool.AddCert(cert)
 		}
 		p.certPool = newPool
@@ -152,4 +154,14 @@ func (p *PEMCertPool) RawCertificates() []*x509.Certificate {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.rawCerts
+}
+
+// RawCertificatesBytes returns a list of the raw bytes of certificates that are in this pool
+func (p *PEMCertPool) RawCertificatesBytes() [][]byte {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	// Return a copy to be safe against concurrent modification by AddCerts
+	c := make([][]byte, len(p.rawCertsBytes))
+	copy(c, p.rawCertsBytes)
+	return c
 }
