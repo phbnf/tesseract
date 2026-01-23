@@ -28,6 +28,7 @@ resource "tls_private_key" "tesseract_ecdsa_p256" {
 }
 
 resource "google_secret_manager_secret" "tesseract_ecdsa_p256_public_key" {
+  //count = var.create_keys? 1 : 0
   secret_id = "${var.base_name}-ecdsa-p256-public-key"
 
   labels = {
@@ -38,16 +39,32 @@ resource "google_secret_manager_secret" "tesseract_ecdsa_p256_public_key" {
     auto {}
   }
 
+  lifecycle {
+    prevent_destroy = true
+    # This is the "secret sauce" - it tells Terraform: 
+    # "Don't touch ANY settings, just keep it in state and don't delete it."
+    ignore_changes = all
+  }
+
   depends_on = [google_project_service.secretmanager_googleapis_com]
 }
 
 resource "google_secret_manager_secret_version" "tesseract_ecdsa_p256_public_key" {
+  count = var.create_keys? 1 : 0
   secret = google_secret_manager_secret.tesseract_ecdsa_p256_public_key.id
+
+  lifecycle {
+    prevent_destroy = true
+    # This is the "secret sauce" - it tells Terraform: 
+    # "Don't touch ANY settings, just keep it in state and don't delete it."
+    ignore_changes = all
+  }
 
   secret_data = tls_private_key.tesseract_ecdsa_p256.public_key_pem
 }
 
 resource "google_secret_manager_secret" "tesseract_ecdsa_p256_private_key" {
+  //count = var.create_keys? 1 : 0
   secret_id = "${var.base_name}-ecdsa-p256-private-key"
 
   labels = {
@@ -58,11 +75,26 @@ resource "google_secret_manager_secret" "tesseract_ecdsa_p256_private_key" {
     auto {}
   }
 
+  lifecycle {
+    prevent_destroy = true
+    # This is the "secret sauce" - it tells Terraform: 
+    # "Don't touch ANY settings, just keep it in state and don't delete it."
+    ignore_changes = all
+  }
+
   depends_on = [google_project_service.secretmanager_googleapis_com]
 }
 
 resource "google_secret_manager_secret_version" "tesseract_ecdsa_p256_private_key" {
+  count = var.create_keys? 1 : 0
   secret = google_secret_manager_secret.tesseract_ecdsa_p256_private_key.id
+
+  lifecycle {
+    prevent_destroy = true
+    # This is the "secret sauce" - it tells Terraform: 
+    # "Don't touch ANY settings, just keep it in state and don't delete it."
+    ignore_changes = all
+  }
 
   secret_data = tls_private_key.tesseract_ecdsa_p256.private_key_pem
 }
