@@ -326,6 +326,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject SubjectKeyIdentifier extension
 				v.rejectExtIds = []asn1.ObjectIdentifier{[]int{99, 99, 99, 99}}
+				v.refreshMaps()
 			},
 			wantPathLen: 3,
 		},
@@ -335,6 +336,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject SubjectKeyIdentifier extension
 				v.rejectExtIds = []asn1.ObjectIdentifier{[]int{99, 99, 99, 99}}
+				v.refreshMaps()
 			},
 			wantPathLen: 2,
 		},
@@ -345,6 +347,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject ExtendedKeyUsage extension
 				v.rejectExtIds = []asn1.ObjectIdentifier{[]int{2, 5, 29, 37}}
+				v.refreshMaps()
 			},
 		},
 		{
@@ -354,6 +357,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject ExtendedKeyUsage extension
 				v.rejectExtIds = []asn1.ObjectIdentifier{[]int{2, 5, 29, 37}}
+				v.refreshMaps()
 			},
 		},
 		{
@@ -363,6 +367,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject cert without ExtKeyUsageEmailProtection
 				v.extKeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection}
+				v.refreshMaps()
 			},
 		},
 		{
@@ -371,6 +376,7 @@ func TestValidate(t *testing.T) {
 			wantPathLen: 3,
 			modifyCV: func(v *chainValidator) {
 				v.extKeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+				v.refreshMaps()
 			},
 		},
 		{
@@ -380,6 +386,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject cert without ExtKeyUsageEmailProtection
 				v.extKeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection}
+				v.refreshMaps()
 			},
 		},
 		{
@@ -388,6 +395,7 @@ func TestValidate(t *testing.T) {
 			wantPathLen: 2,
 			modifyCV: func(v *chainValidator) {
 				v.extKeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+				v.refreshMaps()
 			},
 		},
 	}
@@ -533,6 +541,7 @@ func TestRejectExpiredUnexpired(t *testing.T) {
 		trustedRoots: fakeCARoots,
 		extKeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
+	cv.refreshMaps()
 	beforeValidPeriod := time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC)
 	currentValidPeriod := time.Date(2017, 1, 1, 0, 0, 0, 0, time.UTC)
 	afterValidPeriod := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -732,6 +741,7 @@ func TestPreIssuedCert(t *testing.T) {
 				trustedRoots: roots,
 				extKeyUsages: tc.eku,
 			}
+			cv.refreshMaps()
 			chain, err := parseChain(tc.chain)
 			if err != nil {
 				t.Fatalf("parseChain()=%v", err)
