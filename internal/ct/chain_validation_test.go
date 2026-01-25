@@ -257,6 +257,7 @@ func TestValidate(t *testing.T) {
 	cv := chainValidator{
 		trustedRoots: fakeCARoots,
 	}
+	cv.refreshMaps()
 
 	var tests = []struct {
 		desc        string
@@ -397,6 +398,7 @@ func TestValidate(t *testing.T) {
 			if test.modifyCV != nil {
 				test.modifyCV(&cvv)
 			}
+			cvv.refreshMaps()
 			chain, err := parseChain(test.chain)
 			if err != nil {
 				t.Fatalf("parseChain()=%v", err)
@@ -458,6 +460,7 @@ func TestNotAfterRange(t *testing.T) {
 		trustedRoots:  fakeCARoots,
 		rejectExpired: false,
 	}
+	cv.refreshMaps()
 
 	chain := pemsToDERChain(t, []string{testdata.LeafSignedByFakeIntermediateCertPEM, testdata.FakeIntermediateCertPEM})
 
@@ -533,6 +536,8 @@ func TestRejectExpiredUnexpired(t *testing.T) {
 		trustedRoots: fakeCARoots,
 		extKeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
+	cv.refreshMaps()
+
 	beforeValidPeriod := time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC)
 	currentValidPeriod := time.Date(2017, 1, 1, 0, 0, 0, 0, time.UTC)
 	afterValidPeriod := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -732,6 +737,7 @@ func TestPreIssuedCert(t *testing.T) {
 				trustedRoots: roots,
 				extKeyUsages: tc.eku,
 			}
+			cv.refreshMaps()
 			chain, err := parseChain(tc.chain)
 			if err != nil {
 				t.Fatalf("parseChain()=%v", err)

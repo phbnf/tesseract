@@ -1,0 +1,3 @@
+## 2025-01-25 - Tests Bypassing Constructors
+**Learning:** In this Go codebase, unit tests often instantiate private structs (like `chainValidator`) directly using struct literals, bypassing the public `New...` constructor. This means that initialization logic added to the constructor (like pre-calculating maps) must be manually replicated or invoked in the tests to avoid nil pointer dereferences or inconsistent state.
+**Action:** When moving initialization logic to a constructor, always check test files for direct struct instantiation and add helper methods (like `refreshMaps`) to sync state in tests.
