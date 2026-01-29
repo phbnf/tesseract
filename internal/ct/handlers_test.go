@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -908,6 +909,36 @@ func BenchmarkParseChain(b *testing.B) {
 		_, err := parseChain(chain)
 		if err != nil {
 			b.Fatalf("parseChain: %v", err)
+		}
+	}
+}
+
+// BenchmarkValidateChainWithRestrictions to see how expensive cert validating is with restrictions.
+//
+// go test --bench=BenchmarkValidateChainWithRestrictions -run='^$' ./internal/ct -v=1 --benchtime=10s
+func BenchmarkValidateChainWithRestrictions(b *testing.B) {
+	rawChain := pemsToDERChain(b, []string{testdata.PreCertFromIntermediate, testdata.IntermediateFromRoot, testdata.CACertPEM})
+	chain, err := parseChain(rawChain)
+	if err != nil {
+		b.Fatalf("parseChain: %v", err)
+	}
+	r := x509util.NewPEMCertPool()
+	r.AddCerts([]*x509.Certificate{chain[2]})
+
+	// Create some dummy restrictions
+	// OID 1.2.3.4 (dummy)
+	oid := asn1.ObjectIdentifier{1, 2, 3, 4}
+	rejectExtIds := []asn1.ObjectIdentifier{oid}
+
+	// ServerAuth
+	ekus := []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+
+	cv := NewChainValidator(r, false, false, nil, nil, ekus, rejectExtIds, false)
+
+	for b.Loop() {
+		_, err := cv.Validate(chain, true)
+		if err != nil {
+			b.Fatalf("Validate: %v", err)
 		}
 	}
 }
