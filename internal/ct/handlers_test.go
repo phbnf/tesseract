@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -1057,5 +1058,34 @@ func TestReceivedAtOrigin(t *testing.T) {
 				t.Errorf("receivedAtOrigin() succeeded, but want error: %v", gotErr)
 			}
 		})
+	}
+}
+
+func BenchmarkValidateChainWithRestrictions(b *testing.B) {
+	rawChain := pemsToDERChain(b, []string{testdata.PreCertFromIntermediate, testdata.IntermediateFromRoot, testdata.CACertPEM})
+	chain, err := parseChain(rawChain)
+	if err != nil {
+		b.Fatalf("parseChain: %v", err)
+	}
+	r := x509util.NewPEMCertPool()
+	r.AddCerts([]*x509.Certificate{chain[2]})
+
+	ekus := []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageEmailProtection}
+	// Add a few dummy OIDs to reject
+	rejects := []asn1.ObjectIdentifier{
+		{1, 2, 3, 4, 5},
+		{2, 5, 29, 999}, // Unknown extension
+		{1, 3, 6, 1, 4, 1, 11129, 2, 4, 99}, // Another one
+	}
+
+	// We use NewChainValidator so that when we optimize it, this benchmark picks it up.
+	cv := NewChainValidator(r, false, false, nil, nil, ekus, rejects, false)
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, err := cv.Validate(chain, true)
+		if err != nil {
+			b.Fatalf("Validate: %v", err)
+		}
 	}
 }
