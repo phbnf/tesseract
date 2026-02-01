@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -908,6 +909,36 @@ func BenchmarkParseChain(b *testing.B) {
 		_, err := parseChain(chain)
 		if err != nil {
 			b.Fatalf("parseChain: %v", err)
+		}
+	}
+}
+
+func BenchmarkValidateChainWithRestrictions(b *testing.B) {
+	rawChain := pemsToDERChain(b, []string{testdata.PreCertFromIntermediate, testdata.IntermediateFromRoot, testdata.CACertPEM})
+	chain, err := parseChain(rawChain)
+	if err != nil {
+		b.Fatalf("parseChain: %v", err)
+	}
+	r := x509util.NewPEMCertPool()
+	r.AddCerts([]*x509.Certificate{chain[2]})
+
+	// Add some restrictions to trigger the map creation overhead
+	rejectExtIds := make([]asn1.ObjectIdentifier, 0, 10000)
+	for i := 0; i < 10000; i++ {
+		rejectExtIds = append(rejectExtIds, asn1.ObjectIdentifier{1, 2, 3, 1000 + i})
+	}
+	extKeyUsages := []x509.ExtKeyUsage{
+		x509.ExtKeyUsageServerAuth,
+		x509.ExtKeyUsageClientAuth,
+	}
+
+	cv := NewChainValidator(r, false, false, nil, nil, extKeyUsages, rejectExtIds, false)
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, err := cv.Validate(chain, true)
+		if err != nil {
+			b.Fatalf("Validate: %v", err)
 		}
 	}
 }
