@@ -159,7 +159,7 @@ resource "aws_ecs_task_definition" "conformance" {
       "appProtocol" : "http"
     }],
     "essential" : true,
-    "command" : [
+    "command" : concat([
       "--http_endpoint=:${local.port}",
       "--roots_pem_file=/bin/test_root_ca_cert.pem",
       "--origin=ci-static-ct",
@@ -178,7 +178,7 @@ resource "aws_ecs_task_definition" "conformance" {
       "--roots_remote_fetch_url=${var.roots_remote_fetch_url}",
       "--roots_remote_fetch_interval=${var.roots_remote_fetch_interval}",
       "-v=2"
-    ],
+    ], [for fp in var.roots_reject_fingerprints : "--roots_reject_fingerprints=${fp}"]),
     "logConfiguration" : {
       "logDriver" : "awslogs",
       "options" : {

@@ -94,3 +94,9 @@ variable "roots_remote_fetch_interval" {
   type        = string
   default     = "0s"
 }
+
+variable "roots_reject_fingerprints" {
+  description = "List of SHA-256 fingerprints (hex) of root certificates to reject."
+  type        = list(string)
+  default     = []
+}

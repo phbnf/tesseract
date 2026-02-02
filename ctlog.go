@@ -21,9 +21,11 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -77,6 +79,9 @@ type ChainValidationConfig struct {
 	// CAUTION: This is a temporary solution and it will eventually be removed.
 	// DO NOT depend on it.
 	AcceptSHA1 bool
+	// RejectRoots is a list of SHA-256 fingerprints (hex encoded) of ASN.1 DER
+	// encoded root certificates that should be rejected.
+	RejectRoots []string
 }
 
 // systemTimeSource implements ct.TimeSource.
@@ -96,9 +101,46 @@ func newChainValidator(ctx context.Context, cfg ChainValidationConfig) (ct.Chain
 	if cfg.RootsPEMFile == "" {
 		return nil, errors.New("empty rootsPemFile")
 	}
+
+	rejectedRoots := make(map[string]bool)
+	for _, r := range cfg.RejectRoots {
+		rejectedRoots[strings.ToLower(r)] = true
+	}
+
+	isRejected := func(der []byte) bool {
+		sha := sha256.Sum256(der)
+		key := hex.EncodeToString(sha[:])
+		return rejectedRoots[key]
+	}
+
 	roots := x509util.NewPEMCertPool()
-	if err := roots.AppendCertsFromPEMFile(cfg.RootsPEMFile); err != nil {
-		return nil, fmt.Errorf("failed to read trusted roots: %v", err)
+	// Read and filter local roots
+	// We cannot use AppendCertsFromPEMFile directly because we need to filter them first.
+	// TODO(phboneff): consider adding a FilteredAppendCertsFromPEMFile to x509util if this pattern becomes common.
+	rootsPEM, err := os.ReadFile(cfg.RootsPEMFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read trusted roots from %q: %v", cfg.RootsPEMFile, err)
+	}
+
+	var acceptedRoots [][]byte
+	var block *pem.Block
+	rest := rootsPEM
+	for {
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		if isRejected(block.Bytes) {
+			klog.Warningf("Rejecting local root with fingerprint %x", sha256.Sum256(block.Bytes))
+			continue
+		}
+		acceptedRoots = append(acceptedRoots, pem.EncodeToMemory(block))
+	}
+	if len(acceptedRoots) > 0 {
+		roots.AppendCertsFromPEMs(acceptedRoots...)
 	}
 
 	if cfg.RejectExpired && cfg.RejectUnexpired {
@@ -110,7 +152,6 @@ func newChainValidator(ctx context.Context, cfg ChainValidationConfig) (ct.Chain
 		return nil, fmt.Errorf("'Not After' limit %q before start %q", cfg.NotAfterLimit.Format(time.RFC3339), cfg.NotAfterStart.Format(time.RFC3339))
 	}
 
-	var err error
 	var extKeyUsages []x509.ExtKeyUsage
 	// Filter which extended key usages are allowed.
 	if cfg.ExtKeyUsages != "" {
@@ -138,6 +179,12 @@ func newChainValidator(ctx context.Context, cfg ChainValidationConfig) (ct.Chain
 		}
 		certs := make([][]byte, 0, len(kvs))
 		for _, kv := range kvs {
+			// kv.V is PEM
+			block, _ := pem.Decode(kv.V)
+			if block != nil && isRejected(block.Bytes) {
+				klog.Warningf("Rejecting backup root with fingerprint %x", sha256.Sum256(block.Bytes))
+				continue
+			}
 			certs = append(certs, kv.V)
 		}
 		parsed, added := roots.AppendCertsFromPEMs(certs...)
@@ -157,15 +204,23 @@ func newChainValidator(ctx context.Context, cfg ChainValidationConfig) (ct.Chain
 					klog.Errorf("Couldn't parse root from %q: empty row", cfg.RootsRemoteFetchURL)
 					continue
 				}
-				pems = append(pems, r[0])
-				sha := sha256.Sum256(r[0])
-				key := []byte(hex.EncodeToString(sha[:]))
+				// Always try to back up the root, even if we reject it for loading.
 				if cfg.RootsRemoteFetchBackup != nil {
+					// Use SHA256 of PEM as key for backup deduplication
+					sha := sha256.Sum256(r[0])
+					key := []byte(hex.EncodeToString(sha[:]))
 					if err := cfg.RootsRemoteFetchBackup.AddIfNotExist(ctx, []storage.KV{{K: key, V: r[0]}}); err != nil {
 						klog.Errorf("Couldn't store roots %q: %v", string(key), err)
 						continue
 					}
 				}
+
+				block, _ := pem.Decode(r[0])
+				if block != nil && isRejected(block.Bytes) {
+					klog.Warningf("Rejecting remote root with fingerprint %x", sha256.Sum256(block.Bytes))
+					continue
+				}
+				pems = append(pems, r[0])
 			}
 			parsed, added := roots.AppendCertsFromPEMs(pems...)
 			klog.Infof("Fetched %d roots, parsed %d, and loaded %d new ones from %q", len(pems), parsed, added, cfg.RootsRemoteFetchURL)

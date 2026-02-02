@@ -38,7 +38,7 @@ resource "google_cloud_run_v2_service" "default" {
     containers {
       image = var.server_docker_image
       name  = "tesseract"
-      args = [
+      args = concat([
         "--logtostderr",
         "--v=1",
         "--http_endpoint=:6962",
@@ -58,7 +58,7 @@ resource "google_cloud_run_v2_service" "default" {
         "--batch_max_age=${var.batch_max_age}",
         "--roots_remote_fetch_url=${var.roots_remote_fetch_url}",
         "--roots_remote_fetch_interval=${var.roots_remote_fetch_interval}",
-      ]
+      ], [for fp in var.roots_reject_fingerprints : "--roots_reject_fingerprints=${fp}"])
       ports {
         container_port = 6962
       }
