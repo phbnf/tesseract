@@ -23,6 +23,8 @@ module "gce_ilb" {
   service_label                = var.base_name
   create_backend_firewall      = false
   create_health_check_firewall = false
+  network    = "https://www.googleapis.com/compute/v1/projects/static-ct-sandbox/global/networks/default"
+  subnetwork = "https://www.googleapis.com/compute/v1/projects/static-ct-sandbox/regions/us-central1/subnetworks/default"
 
   health_check = {
     type                = "http"
