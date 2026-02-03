@@ -15,8 +15,10 @@
 package x509util_test
 
 import (
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"testing"
 
 	"github.com/transparency-dev/tesseract/internal/x509util"
@@ -80,7 +82,10 @@ func TestAppendCertsFromPEMs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := x509util.NewPEMCertPool()
+			p, err := x509util.NewPEMCertPool()
+			if err != nil {
+				t.Fatalf("NewPEMCertPool() err=%v", err)
+			}
 			gotParsed, gotAdded := p.AppendCertsFromPEMs(tt.pems...)
 			poolLen := len(p.Subjects())
 			if gotParsed != tt.wantParsed || gotAdded != tt.wantAdded {
@@ -111,7 +116,10 @@ func TestIncluded(t *testing.T) {
 		{cert: certs[1], want: [2]bool{true, true}},
 	}
 
-	pool := x509util.NewPEMCertPool()
+	pool, err := x509util.NewPEMCertPool()
+	if err != nil {
+		t.Fatalf("NewPEMCertPool() err=%v", err)
+	}
 	for _, test := range tests {
 		if test.cert != nil {
 			pool.AddCerts([]*x509.Certificate{test.cert})
@@ -122,6 +130,58 @@ func TestIncluded(t *testing.T) {
 				t.Errorf("pool.Included(cert[%d])=%v, want %v", i, got, test.want[i])
 			}
 		}
+	}
+}
+
+func TestFiltering(t *testing.T) {
+	cert := parsePEM(t, pemCACert)
+	fingerprint := sha256.Sum256(cert.Raw)
+	fingerprintHex := fmt.Sprintf("%x", fingerprint)
+
+	tests := []struct {
+		name                 string
+		rejectedFingerprints []string
+		wantAdded            int
+	}{
+		{
+			name:                 "no-filter",
+			rejectedFingerprints: []string{},
+			wantAdded:            1,
+		},
+		{
+			name:                 "filter-match",
+			rejectedFingerprints: []string{fingerprintHex},
+			wantAdded:            0,
+		},
+		{
+			name:                 "filter-no-match",
+			rejectedFingerprints: []string{"0000000000000000000000000000000000000000000000000000000000000000"},
+			wantAdded:            1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := x509util.NewPEMCertPool(tt.rejectedFingerprints...)
+			if err != nil {
+				t.Fatalf("NewPEMCertPool() err=%v", err)
+			}
+			gotAdded := p.AddCerts([]*x509.Certificate{cert})
+			if gotAdded != tt.wantAdded {
+				t.Errorf("AddCerts() gotAdded=%v, want=%v", gotAdded, tt.wantAdded)
+			}
+		})
+	}
+
+	// Test invalid fingerprint
+	_, err := x509util.NewPEMCertPool("invalid-hex")
+	if err == nil {
+		t.Error("NewPEMCertPool(\"invalid-hex\") expected error, got nil")
+	}
+
+	_, err = x509util.NewPEMCertPool("00") // Too short
+	if err == nil {
+		t.Error("NewPEMCertPool(\"00\") expected error, got nil")
 	}
 }
 
