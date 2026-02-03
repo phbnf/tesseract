@@ -43,7 +43,7 @@ module "gce_ilb" {
 
   backends = [
     {
-      group          = var.backend_group
+      group          = "projects/static-ct-sandbox/regions/us-central1/instanceGroupManagers/hura2026h1d-instance-group-manager" // var.backend_group
       description    = ""
       failover       = false
       balancing_mode = "CONNECTION"
