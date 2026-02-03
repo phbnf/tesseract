@@ -142,6 +142,14 @@ func TestNewCertValidationOpts(t *testing.T) {
 				NotAfterLimit: &t200,
 			},
 		},
+		{
+			desc:    "invalid-reject-roots",
+			wantErr: "failed to create roots pool",
+			cvCfg: ChainValidationConfig{
+				RootsPEMFile: "./internal/testdata/fake-ca.cert",
+				RejectRoots:  []string{"invalid-hex"},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			vc, err := newChainValidator(t.Context(), tc.cvCfg)

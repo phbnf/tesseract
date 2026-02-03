@@ -145,7 +145,6 @@ func newChainValidator(ctx context.Context, cfg ChainValidationConfig) (ct.Chain
 		}
 		certs := make([][]byte, 0, len(kvs))
 		for _, kv := range kvs {
-			// kv.V is PEM
 			certs = append(certs, kv.V)
 		}
 		parsed, added := roots.AppendCertsFromPEMs(certs...)
@@ -165,11 +164,10 @@ func newChainValidator(ctx context.Context, cfg ChainValidationConfig) (ct.Chain
 					klog.Errorf("Couldn't parse root from %q: empty row", cfg.RootsRemoteFetchURL)
 					continue
 				}
-				// Always try to back up the root, even if we reject it for loading.
+				pems = append(pems, r[0])
+				sha := sha256.Sum256(r[0])
+				key := []byte(hex.EncodeToString(sha[:]))
 				if cfg.RootsRemoteFetchBackup != nil {
-					// Use SHA256 of PEM as key for backup deduplication
-					sha := sha256.Sum256(r[0])
-					key := []byte(hex.EncodeToString(sha[:]))
 					if err := cfg.RootsRemoteFetchBackup.AddIfNotExist(ctx, []storage.KV{{K: key, V: r[0]}}); err != nil {
 						klog.Errorf("Couldn't store roots %q: %v", string(key), err)
 						continue
