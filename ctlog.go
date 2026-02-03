@@ -48,6 +48,9 @@ type ChainValidationConfig struct {
 	// RootsRemoteFetchBackup is a persistent backup storage for roots fetched
 	// remotely.
 	RootsRemoteFetchBackup storage.RootsStorage
+	// RejectRoots is a list of hex-encoded SHA-256 fingerprints of ASN.1 DER
+	// encoded root certificates that should never be trusted.
+	RejectRoots []string
 	// RejectExpired controls if true then the certificate validity period will be
 	// checked against the current time during the validation of submissions.
 	// This will cause expired certificates to be rejected.
@@ -77,9 +80,6 @@ type ChainValidationConfig struct {
 	// CAUTION: This is a temporary solution and it will eventually be removed.
 	// DO NOT depend on it.
 	AcceptSHA1 bool
-	// RejectRoots is a list of hex-encoded SHA-256 fingerprints of ASN.1 DER
-	// encoded root certificates that should be rejected.
-	RejectRoots []string
 }
 
 // systemTimeSource implements ct.TimeSource.
@@ -104,7 +104,6 @@ func newChainValidator(ctx context.Context, cfg ChainValidationConfig) (ct.Chain
 	if err != nil {
 		return nil, fmt.Errorf("failed to create roots pool: %v", err)
 	}
-	// Read local roots
 	if err := roots.AppendCertsFromPEMFile(cfg.RootsPEMFile); err != nil {
 		return nil, fmt.Errorf("failed to read trusted roots from %q: %v", cfg.RootsPEMFile, err)
 	}

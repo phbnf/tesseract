@@ -95,6 +95,7 @@ variable "roots_remote_fetch_interval" {
   description = "Interval between two fetches from roots_fetch_url, e.g. \"1h\"."
   type        = string
   default     = "0s"
+}
 
 variable "roots_reject_fingerprints" {
   description = "List of hex-encoded SHA-256 fingerprints of root certificates to reject."
