@@ -77,7 +77,7 @@ type ChainValidationConfig struct {
 	// CAUTION: This is a temporary solution and it will eventually be removed.
 	// DO NOT depend on it.
 	AcceptSHA1 bool
-	// RejectRoots is a list of SHA-256 fingerprints (hex encoded) of ASN.1 DER
+	// RejectRoots is a list of hex-encoded SHA-256 fingerprints of ASN.1 DER
 	// encoded root certificates that should be rejected.
 	RejectRoots []string
 }
