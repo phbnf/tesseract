@@ -24,6 +24,10 @@ jobs:
           cat ${{ github.workspace }}/env
 
       - name: Spin up POSIX tesseract CI test
+        env:
+          ROOTS_REMOTE_FETCH_URL: "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/testdata/roots.csv"
+          ROOTS_REMOTE_FETCH_INTERVAL: "1h"
+          ROOTS_REJECT_FINGERPRINTS: "5F21D7B05373D015FA05C4E80B4BFDBB29F8E8655F5B29BB2AAF7C0910530637"
         shell: bash
         run: |
           echo "Launching POSIX tesseract"
@@ -31,8 +35,52 @@ jobs:
           export CT_LOG_PUBLIC_KEY=$(openssl ec -pubin -inform PEM -in ${{ github.workspace }}/testlog/test-ecdsa-pub.pem -outform der | base64 -w 0)
           export UID
           export GID
+          
+          # Start Tesseract
           docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml \
-            --env-file="${{ github.workspace }}/env" up \
+            --env-file="${{ github.workspace }}/env" up -d tesseract
+          
+          # Wait for Tesseract to be ready
+          echo "Waiting for Tesseract to be ready..."
+          timeout 60s bash -c 'until curl -s http://localhost:6962/healthz; do sleep 1; done'
+          
+          # Verify Roots
+          echo "Verifying roots..."
+          curl -s http://localhost:6962/ct/v1/get-roots > roots.json
+          
+          # Check for Manual Root (test_root_ca_cert.pem) - usually always present
+          # Check for Remote Accepted Root (test_intermediate_ca_cert.pem from CSV)
+          # Check for Remote Rejected Root (fake-ca.cert from CSV) -> SHOULD BE ABSENT via rejection
+          
+          jq -r ".certificates[]" roots.json | while read pem; do
+            echo "-----BEGIN CERTIFICATE-----" > cert.pem
+            echo "$pem" >> cert.pem
+            echo "-----END CERTIFICATE-----" >> cert.pem
+            openssl x509 -in cert.pem -noout -fingerprint -sha256 >> fingerprints.txt
+          done
+          
+          echo "Found fingerprints:"
+          cat fingerprints.txt
+          
+          if grep -q "6F:17:04:0A:F4:30:AE:B7:09:C1:93:71:64:84:7B:75:E5:8D:EE:6A:2D:E1:19:FC:D2:CA:62:79:11:01:2B:7B" fingerprints.txt; then
+            echo "Found expected accepted remote root."
+          else
+            echo "FAILED: Did not find accepted remote root."
+            exit 1
+          fi
+          
+          if grep -q "5F:21:D7:B0:53:73:D0:15:FA:05:C4:E8:0B:4B:FD:BB:29:F8:E8:65:5F:5B:29:BB:2A:AF:7C:09:10:53:06:37" fingerprints.txt; then
+            echo "FAILED: Found rejected remote root."
+            exit 1
+          else
+             echo "Success: Rejected root is absent."
+          fi
+          
+          echo "Root verification succeeded."
+
+          # Start the Hammer
+          docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml \
+            --env-file="${{ github.workspace }}/env" up -d hammer \
             --abort-on-container-exit \
             --exit-code-from hammer
 

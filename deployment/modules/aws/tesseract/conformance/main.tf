@@ -288,3 +288,74 @@ resource "aws_ecs_task_definition" "hammer" {
     aws_ecs_cluster.ecs_cluster,
   ]
 }
+
+resource "aws_ecs_task_definition" "verify_roots" {
+  family                   = "verify_roots"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 256
+  memory                   = 512
+  execution_role_arn       = var.ecs_execution_role
+  container_definitions = jsonencode([{
+    "name" : "verify_roots",
+    "image" : "${var.ecr_registry}/${var.ecr_repository_conformance}",
+    "cpu" : 0,
+    "essential" : true,
+    "command" : [
+      "sh", "-c",
+      <<EOT
+        apk add --no-cache openssl jq
+
+        LOG_URL="http://${aws_service_discovery_service.conformance.name}.${aws_service_discovery_private_dns_namespace.internal.name}:${local.port}"
+        echo "Verifying roots at $LOG_URL"
+
+        wget -qO- "$LOG_URL/ct/v1/get-roots" > /tmp/roots.json
+        
+        jq -r ".certificates[]" /tmp/roots.json | while read pem; do
+          echo "-----BEGIN CERTIFICATE-----" > /tmp/cert.pem
+          echo "$pem" >> /tmp/cert.pem
+          echo "-----END CERTIFICATE-----" >> /tmp/cert.pem
+          openssl x509 -in /tmp/cert.pem -noout -fingerprint -sha256 >> /tmp/fingerprints.txt
+        done
+        
+        cat /tmp/fingerprints.txt
+        
+        if grep -q "6F:17:04:0A:F4:30:AE:B7:09:C1:93:71:64:84:7B:75:E5:8D:EE:6A:2D:E1:19:FC:D2:CA:62:79:11:01:2B:7B" /tmp/fingerprints.txt; then
+          echo "Found expected accepted remote root."
+        else
+          echo "FAILED: Did not find accepted remote root."
+          exit 1
+        fi
+        
+        if grep -q "5F:21:D7:B0:53:73:D0:15:FA:05:C4:E8:0B:4B:FD:BB:29:F8:E8:65:5F:5B:29:BB:2A:AF:7C:09:10:53:06:37" /tmp/fingerprints.txt; then
+          echo "FAILED: Found rejected remote root."
+          exit 1
+        else
+           echo "Success: Rejected root is absent."
+        fi
+        
+        echo "Root verification succeeded."
+      EOT
+    ],
+    "logConfiguration" : {
+      "logDriver" : "awslogs",
+      "options" : {
+        "awslogs-group" : "/ecs/${local.name}-verify_roots",
+        "mode" : "non-blocking",
+        "awslogs-create-group" : "true",
+        "max-buffer-size" : "25m",
+        "awslogs-region" : var.region,
+        "awslogs-stream-prefix" : "ecs"
+      },
+    },
+  }])
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
+  depends_on = [
+    aws_service_discovery_service.conformance
+  ]
+}
