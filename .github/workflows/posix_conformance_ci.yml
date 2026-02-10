@@ -38,7 +38,9 @@ jobs:
           
           # Start Tesseract
           docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml \
-            --env-file="${{ github.workspace }}/env" up -d tesseract
+            --env-file="${{ github.workspace }}/env" up \
+            --abort-on-container-exit \
+            --exit-code-from hammer
           
           # Wait for Tesseract to be ready
           echo "Waiting for Tesseract to be ready..."
@@ -77,12 +79,6 @@ jobs:
           fi
           
           echo "Root verification succeeded."
-
-          # Start the Hammer
-          docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml \
-            --env-file="${{ github.workspace }}/env" up -d hammer \
-            --abort-on-container-exit \
-            --exit-code-from hammer
 
       - name: fsck the log
         shell: bash
