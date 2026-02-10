@@ -42,7 +42,7 @@ jobs:
           
           # Wait for Tesseract to be ready
           echo "Waiting for Tesseract to be ready..."
-          timeout 60s bash -c 'until curl -s http://localhost:6962/healthz; do sleep 1; done'
+          sleep 15s
           
           # Verify Roots
           echo "Verifying roots..."
