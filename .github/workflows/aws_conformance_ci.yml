@@ -93,7 +93,7 @@ jobs:
           ECS_EXECUTION_ROLE: ${{ secrets.AWS_IAMROLE_ECS_EXECUTION }}
           ECS_CONFORMANCE_TASK_ROLE: ${{ secrets.AWS_IAMROLE_ECS_CONFORMANCE_TASK }}
           TF_VAR_roots_remote_fetch_url: "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/testdata/roots.csv"
-          TF_VAR_roots_reject_fingerprints: '["5F21D7B05373D015FA05C4E80B4BFDBB29F8E8655F5B29BB2AAF7C0910530637"]'
+          TF_VAR_roots_reject_fingerprints: '["5f21d7b05373d015fa05c4e80b4bfdbb29f8e8655f5b29bb2aaf7c0910530637"]'
           INPUT_POST_EXEC_1: |
             echo "ECS_CLUSTER=$(terragrunt output -raw ecs_cluster)" >> "$GITHUB_ENV"
           INPUT_POST_EXEC_2: |

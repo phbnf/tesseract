@@ -175,7 +175,7 @@ resource "google_cloudbuild_trigger" "build_trigger" {
         "TF_INPUT=false",
         "TF_VAR_project_id=${var.project_id}",
         "TF_VAR_roots_remote_fetch_url=https://raw.githubusercontent.com/${var.github_owner}/tesseract/$COMMIT_SHA/testdata/roots.csv",
-        "TF_VAR_roots_reject_fingerprints=[\"5F21D7B05373D015FA05C4E80B4BFDBB29F8E8655F5B29BB2AAF7C0910530637\"]"
+        "TF_VAR_roots_reject_fingerprints=[\"5F21D7B05373D015FA05C4E80B4BFDBB29F8E8655F5B29BB2AAF7C0910530637\""
       ]
       wait_for = ["preclean_env", "create_test_keys", "docker_push_conformance_gcp"]
     }
@@ -232,19 +232,19 @@ resource "google_cloudbuild_trigger" "build_trigger" {
           echo "-----BEGIN CERTIFICATE-----" > /workspace/cert.pem
           echo "$pem" >> /workspace/cert.pem
           echo "-----END CERTIFICATE-----" >> /workspace/cert.pem
-          openssl x509 -in /workspace/cert.pem -noout -fingerprint -sha256 >> /workspace/fingerprints.txt
+          openssl x509 -inform PEM -outform DER -in /workspace/cert.pem | sha256sum | awk '{print $1}' >> /workspace/fingerprints.txt
         done
         
         cat /workspace/fingerprints.txt
         
-        if grep -q "6F:17:04:0A:F4:30:AE:B7:09:C1:93:71:64:84:7B:75:E5:8D:EE:6A:2D:E1:19:FC:D2:CA:62:79:11:01:2B:7B" /workspace/fingerprints.txt; then
+        if grep -q "6f17040af430aeb709c1937164847b75e58dee6a2de119fcd2ca627911012b7b" /workspace/fingerprints.txt; then
           echo "Found expected accepted remote root."
         else
           echo "FAILED: Did not find accepted remote root."
           exit 1
         fi
         
-        if grep -q "5F:21:D7:B0:53:73:D0:15:FA:05:C4:E8:0B:4B:FD:BB:29:F8:E8:65:5F:5B:29:BB:2A:AF:7C:09:10:53:06:37" /workspace/fingerprints.txt; then
+        if grep -q "5f21d7b05373d015fa05c4e80b4bfdbb29f8e8655f5b29bb2aaf7c0910530637" /workspace/fingerprints.txt; then
           echo "FAILED: Found rejected remote root."
           exit 1
         else
