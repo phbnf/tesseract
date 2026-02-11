@@ -16,13 +16,13 @@ services:
       - "--private_key=/testlog/test-ecdsa-priv.pem"
       - "--checkpoint_interval=2s"
       - "--enable_publication_awaiter=false"
-      # - "--roots_remote_fetch_url=${ROOTS_REMOTE_FETCH_URL}"
-      # - "--roots_remote_fetch_interval=${ROOTS_REMOTE_FETCH_INTERVAL}"
+      - "--roots_remote_fetch_url=${ROOTS_REMOTE_FETCH_URL}"
+      - "--roots_remote_fetch_interval=${ROOTS_REMOTE_FETCH_INTERVAL}"
       - "--roots_reject_fingerprints=${ROOTS_REJECT_FINGERPRINTS}"
     volumes:
       - ../../../../internal/hammer/testdata:/testdata:ro
       - type: bind
-        source: ${WORKSPACE}/testlog
+        source: ../../../../testlog
         target: /testlog
     healthcheck:
       test: ["CMD", cat", "/testlog/checkpoint"]
@@ -59,7 +59,7 @@ services:
     volumes:
       - ../../../../internal/hammer/testdata:/testdata:ro
       - type: bind
-        source: ${WORKSPACE}/testlog
+        source: ../../../../testlog
         target: /testlog
         read_only: true
     depends_on:

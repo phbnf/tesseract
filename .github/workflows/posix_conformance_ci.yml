@@ -35,20 +35,25 @@ jobs:
           export CT_LOG_PUBLIC_KEY=$(openssl ec -pubin -inform PEM -in ${{ github.workspace }}/testlog/test-ecdsa-pub.pem -outform der | base64 -w 0)
           export UID
           export GID
+          export WORKSPACE="${{ github.workspace }}"
           
+          # Ensure cleanup happens on exit
+          trap "docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml logs; docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml down" EXIT
+
           # Start Tesseract
+          echo "Starting Tesseract..."
+          ls -la ${{ github.workspace }}/testlog
           docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml \
-            --env-file="${{ github.workspace }}/env" up \
-            --abort-on-container-exit \
-            --exit-code-from hammer
+            --env-file="${{ github.workspace }}/env" up -d tesseract
           
           # Wait for Tesseract to be ready
           echo "Waiting for Tesseract to be ready..."
           sleep 15s
+          docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml logs tesseract
           
           # Verify Roots
           echo "Verifying roots..."
-          curl -s http://tesseract:6962/ct/v1/get-roots > roots.json
+          curl -s http://localhost:6962/ct/v1/get-roots > roots.json
           
           # Check for Manual Root (test_root_ca_cert.pem) - usually always present
           # Check for Remote Accepted Root (test_intermediate_ca_cert.pem from CSV)
@@ -79,6 +84,13 @@ jobs:
           fi
           
           echo "Root verification succeeded."
+
+          # Start Hammer
+          echo "Starting Hammer..."
+          docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml \
+            --env-file="${{ github.workspace }}/env" up \
+            --exit-code-from hammer \
+            hammer
 
       - name: fsck the log
         shell: bash
