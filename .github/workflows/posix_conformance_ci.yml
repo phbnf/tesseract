@@ -48,7 +48,7 @@ jobs:
           
           # Verify Roots
           echo "Verifying roots..."
-          curl -s http://localhost:6962/ct/v1/get-roots > roots.json
+          curl -s http://tesseract:6962/ct/v1/get-roots > roots.json
           
           # Check for Manual Root (test_root_ca_cert.pem) - usually always present
           # Check for Remote Accepted Root (test_intermediate_ca_cert.pem from CSV)
