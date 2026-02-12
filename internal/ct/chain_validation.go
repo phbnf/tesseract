@@ -106,14 +106,24 @@ type chainValidator struct {
 	// nil means no upper bound on the accepted range.
 	notAfterLimit *time.Time
 	// extKeyUsages contains the list of EKUs to use during chain verification.
-	extKeyUsages []x509.ExtKeyUsage
+	extKeyUsages    []x509.ExtKeyUsage
+	extKeyUsagesMap map[x509.ExtKeyUsage]bool
 	// rejectExtIds contains a list of X.509 extension IDs to reject during chain verification.
-	rejectExtIds []asn1.ObjectIdentifier
+	rejectExtIds    []asn1.ObjectIdentifier
+	rejectExtIdsMap map[string]bool
 	// acceptSHA1 specifies whether cert chains using SHA-1 based signing algorithms are allowed.
 	acceptSHA1 bool
 }
 
 func NewChainValidator(trustedRoots *x509util.PEMCertPool, rejectExpired, rejectUnexpired bool, notAfterStart, notAfterLimit *time.Time, extKeyUsages []x509.ExtKeyUsage, rejectExtIds []asn1.ObjectIdentifier, acceptSHA1 bool) *chainValidator {
+	badIDs := make(map[string]bool)
+	for _, id := range rejectExtIds {
+		badIDs[id.String()] = true
+	}
+	acceptEKUs := make(map[x509.ExtKeyUsage]bool)
+	for _, eku := range extKeyUsages {
+		acceptEKUs[eku] = true
+	}
 	return &chainValidator{
 		trustedRoots:    trustedRoots,
 		rejectExpired:   rejectExpired,
@@ -121,7 +131,9 @@ func NewChainValidator(trustedRoots *x509util.PEMCertPool, rejectExpired, reject
 		notAfterStart:   notAfterStart,
 		notAfterLimit:   notAfterLimit,
 		extKeyUsages:    extKeyUsages,
+		extKeyUsagesMap: acceptEKUs,
 		rejectExtIds:    rejectExtIds,
+		rejectExtIdsMap: badIDs,
 		acceptSHA1:      acceptSHA1,
 	}
 }
@@ -204,9 +216,14 @@ func (cv chainValidator) validate(chain []*x509.Certificate) ([]*x509.Certificat
 	// TODO(al): Refactor CertValidationOpts c'tor to a builder pattern and
 	// pre-calc this in there
 	if len(cv.rejectExtIds) != 0 {
-		badIDs := make(map[string]bool)
-		for _, id := range cv.rejectExtIds {
-			badIDs[id.String()] = true
+		var badIDs map[string]bool
+		if cv.rejectExtIdsMap != nil {
+			badIDs = cv.rejectExtIdsMap
+		} else {
+			badIDs = make(map[string]bool)
+			for _, id := range cv.rejectExtIds {
+				badIDs[id.String()] = true
+			}
 		}
 		for idx, ext := range cert.Extensions {
 			extOid := ext.Id.String()
@@ -219,9 +236,14 @@ func (cv chainValidator) validate(chain []*x509.Certificate) ([]*x509.Certificat
 	// TODO(al): Refactor CertValidationOpts c'tor to a builder pattern and
 	// pre-calc this in there too.
 	if len(cv.extKeyUsages) > 0 {
-		acceptEKUs := make(map[x509.ExtKeyUsage]bool)
-		for _, eku := range cv.extKeyUsages {
-			acceptEKUs[eku] = true
+		var acceptEKUs map[x509.ExtKeyUsage]bool
+		if cv.extKeyUsagesMap != nil {
+			acceptEKUs = cv.extKeyUsagesMap
+		} else {
+			acceptEKUs = make(map[x509.ExtKeyUsage]bool)
+			for _, eku := range cv.extKeyUsages {
+				acceptEKUs[eku] = true
+			}
 		}
 		good := false
 		for _, certEKU := range cert.ExtKeyUsage {
