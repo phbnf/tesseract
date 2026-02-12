@@ -51,6 +51,8 @@ const (
 	contentTypeJSON string = "application/json"
 	// The name of the JSON response map key in get-roots responses
 	jsonMapKeyCertificates string = "certificates"
+	// MaxBodySize is the maximum allowed size for a request body (4MB).
+	MaxBodySize = 4 * 1024 * 1024
 )
 
 // entrypointName identifies a CT entrypoint as defined in section 4 of RFC 6962.
@@ -358,6 +360,10 @@ func (opts *HandlerOptions) sendHTTPError(w http.ResponseWriter, statusCode int,
 func parseBodyAsJSONChain(r *http.Request) (rfc6962.AddChainRequest, error) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return rfc6962.AddChainRequest{}, err
+		}
 		klog.V(1).Infof("Failed to read request body: %v", err)
 		return rfc6962.AddChainRequest{}, err
 	}
@@ -393,6 +399,10 @@ func addChainInternal(ctx context.Context, opts *HandlerOptions, log *log, w htt
 	// Check the contents of the request and convert to slice of certificates.
 	addChainReq, err := parseBodyAsJSONChain(r)
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return http.StatusRequestEntityTooLarge, nil, fmt.Errorf("request body too large: %w", err)
+		}
 		return http.StatusBadRequest, nil, fmt.Errorf("%s: failed to parse add-chain body: %s", log.origin, err)
 	}
 	// Log the DERs now because they might not parse as valid X.509.

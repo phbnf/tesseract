@@ -246,7 +246,8 @@ func NewLogHandler(ctx context.Context, origin string, signer crypto.Signer, cfg
 	mux := http.NewServeMux()
 	// Register handlers for all the configured logs.
 	for path, handler := range handlers {
-		mux.Handle(path, handler)
+		// Limit the size of the request body to prevent DoS.
+		mux.Handle(path, http.MaxBytesHandler(handler, int64(ct.MaxBodySize)))
 	}
 
 	// Health checking endpoint.
