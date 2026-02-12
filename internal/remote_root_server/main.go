@@ -10,7 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -32,35 +32,37 @@ func main() {
 	flag.Parse()
 
 	// Generate CSV content
-	csvContent, expectedFingerprints, err := generateRootsCSV()
+	csvContent, fingerprints, err := generateRootsCSV()
 	if err != nil {
-		log.Fatalf("Failed to generate roots CSV: %v", err)
+		slog.Error("Failed to generate roots CSV", "err", err)
+		os.Exit(1)
 	}
 
 	http.HandleFunc("/roots.csv", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/csv")
 		if _, err := w.Write([]byte(csvContent)); err != nil {
-			log.Printf("Failed to serve roots.csv: %v", err)
+			slog.Warn("Failed to serve roots.csv", "err", err)
 		}
-		log.Printf("Served roots.csv to %s", r.RemoteAddr)
+		slog.Info("Served roots.csv", "remote_addr", r.RemoteAddr)
 	})
 
-	rejected := make(map[string]bool)
+	rejected := make(map[string]struct{})
 	if *rootsReject != "" {
 		for _, fps := range strings.Split(*rootsReject, ",") {
 			fp := strings.TrimSpace(fps)
 			if fp != "" {
-				rejected[strings.ToUpper(fp)] = true
+				rejected[strings.ToLower(fp)] = struct{}{}
 			}
 		}
 	}
 
 	// Start verification in background
-	go verifyLoop(expectedFingerprints, rejected)
+	go verifyLoop(fingerprints, rejected)
 
-	log.Printf("Starting remote_root_server on %s", *httpEndpoint)
+	slog.Info("Starting remote_root_server", "endpoint", *httpEndpoint)
 	if err := http.ListenAndServe(*httpEndpoint, nil); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		slog.Error("Server failed", "err", err)
+		os.Exit(1)
 	}
 }
 
@@ -86,7 +88,7 @@ func generateRootsCSV() (string, []string, error) {
 		}
 
 		fingerprint := sha256.Sum256(cert.Raw)
-		fingerprintHex := strings.ToUpper(hex.EncodeToString(fingerprint[:]))
+		fingerprintHex := strings.ToLower(hex.EncodeToString(fingerprint[:]))
 		fingerprints = append(fingerprints, fingerprintHex)
 
 		subject := cert.Subject.String()
@@ -109,13 +111,13 @@ func generateRootsCSV() (string, []string, error) {
 	return b.String(), fingerprints, nil
 }
 
-func verifyLoop(expectedFingerprints []string, rejected map[string]bool) {
+func verifyLoop(fingerprints []string, rejected map[string]struct{}) {
 	if *exitOnSuccess {
 		// Run immediately once
-		if err := verifyRoots(expectedFingerprints, rejected); err != nil {
-			log.Printf("Verification FAILED: %v", err)
+		if err := verifyRoots(fingerprints, rejected); err != nil {
+			slog.Error("Verification FAILED", "err", err)
 		} else {
-			log.Printf("Verification PASSED. Exiting.")
+			slog.Info("Verification PASSED. Exiting.")
 			os.Exit(0)
 		}
 	}
@@ -124,19 +126,19 @@ func verifyLoop(expectedFingerprints []string, rejected map[string]bool) {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if err := verifyRoots(expectedFingerprints, rejected); err != nil {
-			log.Printf("Verification FAILED: %v", err)
+		if err := verifyRoots(fingerprints, rejected); err != nil {
+			slog.Error("Verification FAILED", "err", err)
 		} else {
-			log.Printf("Verification PASSED")
+			slog.Debug("Verification PASSED")
 			if *exitOnSuccess {
-				log.Printf("Exiting after successful verification.")
+				slog.Info("Exiting after successful verification.")
 				os.Exit(0)
 			}
 		}
 	}
 }
 
-func verifyRoots(expectedFingerprints []string, rejected map[string]bool) error {
+func verifyRoots(fingerprints []string, rejected map[string]struct{}) error {
 	// 1. Check get-roots
 	resp, err := http.Get(*tesseractURL + "/ct/v1/get-roots")
 	if err != nil {
@@ -144,7 +146,7 @@ func verifyRoots(expectedFingerprints []string, rejected map[string]bool) error 
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			log.Printf("resp.Body.Close(): %v", err)
+			slog.Warn("resp.Body.Close()", "err", err)
 		}
 	}()
 
@@ -164,28 +166,32 @@ func verifyRoots(expectedFingerprints []string, rejected map[string]bool) error 
 		return fmt.Errorf("failed to unmarshal JSON: %v", err)
 	}
 
-	foundFingerprints := make(map[string]bool)
+	foundFingerprints := make(map[string]struct{})
 	for _, certDER := range parsed.Certificates {
 		fingerprint := sha256.Sum256(certDER)
-		fp := strings.ToUpper(hex.EncodeToString(fingerprint[:]))
-		foundFingerprints[fp] = true
+		fp := strings.ToLower(hex.EncodeToString(fingerprint[:]))
+		foundFingerprints[fp] = struct{}{}
 		
-		if rejected[fp] {
+		if _, ok := rejected[fp]; ok {
 			return fmt.Errorf("found rejected root: %s", fp)
 		}
 	}
 
 	// Verify all expected fingerprints are present (unless rejected)
-	for _, fp := range expectedFingerprints {
-		if rejected[fp] {
-			if foundFingerprints[fp] {
+	for _, fp := range fingerprints {
+		_, isRejected := rejected[fp]
+		_, isFound := foundFingerprints[fp]
+
+		if isRejected {
+			if isFound {
 				return fmt.Errorf("expected rejected root %s to be absent, but it was present", fp)
 			}
 			continue
 		}
-		if !foundFingerprints[fp] {
+		if !isFound {
 			return fmt.Errorf("missing expected root: %s", fp)
 		}
+		slog.Debug("Found expected root in get-roots's response", "fingerprint", fp)
 	}
 
 	// 2. Check backup dir (if configured)
@@ -194,9 +200,43 @@ func verifyRoots(expectedFingerprints []string, rejected map[string]bool) error 
 		if err != nil {
 			return fmt.Errorf("failed to read roots backup dir: %v", err)
 		}
-		
+
 		if len(files) == 0 {
 			return fmt.Errorf("no roots found in backup dir %s", *rootsBackupDir)
+		}
+
+		// Prepare map of expected roots that should be in backup
+		// Even if a cert is rejected, it should be in the backup
+		notInBackupFingerprints := make(map[string]struct{})
+		for _, fp := range fingerprints {
+			notInBackupFingerprints[fp] = struct{}{}
+		}
+
+		for _, file := range files {
+			if file.IsDir() {
+				// We expect a flat directory of roots
+				continue
+			}
+
+			// User requested to trust the filename as the fingerprint hash
+			fp := strings.ToLower(file.Name())
+
+			if _, ok := notInBackupFingerprints[fp]; ok {
+				delete(notInBackupFingerprints, fp)
+				slog.Debug("Found valid root in backup", "fingerprint", fp)
+			} else {
+				// If it's not in notInBackupFingerprints, it's either an unexpected root
+				// or a duplicate (not possible in a single directory).
+				return fmt.Errorf("found unexpected root in backup: %s", fp)
+			}
+		}
+
+		if len(notInBackupFingerprints) > 0 {
+			var missing []string
+			for fp := range notInBackupFingerprints {
+				missing = append(missing, fp)
+			}
+			return fmt.Errorf("missing expected roots in backup: %v", missing)
 		}
 	}
 
