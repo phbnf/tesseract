@@ -186,6 +186,9 @@ func receivedAtOrigin(r *http.Request, origin string) error {
 // ServeHTTP for an AppHandler invokes the underlying handler function but
 // does additional common error and stats processing.
 func (a appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Limit the size of the request body to prevent DoS.
+	r.Body = http.MaxBytesReader(w, r.Body, int64(MaxBodySize))
+
 	logCtx := a.opts.RequestLog.start(r.Context())
 	logCtx, span := tracer.Start(logCtx, fmt.Sprintf("tesseract.ServeHTTP.%s", a.name))
 	defer span.End()
@@ -357,8 +360,7 @@ func (opts *HandlerOptions) sendHTTPError(w http.ResponseWriter, statusCode int,
 }
 
 // parseBodyAsJSONChain tries to extract cert-chain out of request.
-func parseBodyAsJSONChain(w http.ResponseWriter, r *http.Request) (rfc6962.AddChainRequest, error) {
-	r.Body = http.MaxBytesReader(w, r.Body, int64(MaxBodySize))
+func parseBodyAsJSONChain(r *http.Request) (rfc6962.AddChainRequest, error) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
@@ -398,7 +400,7 @@ func addChainInternal(ctx context.Context, opts *HandlerOptions, log *log, w htt
 	}
 
 	// Check the contents of the request and convert to slice of certificates.
-	addChainReq, err := parseBodyAsJSONChain(w, r)
+	addChainReq, err := parseBodyAsJSONChain(r)
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
