@@ -186,9 +186,6 @@ func receivedAtOrigin(r *http.Request, origin string) error {
 // ServeHTTP for an AppHandler invokes the underlying handler function but
 // does additional common error and stats processing.
 func (a appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Limit the size of the request body to prevent DoS.
-	r.Body = http.MaxBytesReader(w, r.Body, int64(MaxBodySize))
-
 	logCtx := a.opts.RequestLog.start(r.Context())
 	logCtx, span := tracer.Start(logCtx, fmt.Sprintf("tesseract.ServeHTTP.%s", a.name))
 	defer span.End()
