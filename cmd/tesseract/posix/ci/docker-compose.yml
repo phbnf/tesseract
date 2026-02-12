@@ -16,7 +16,7 @@ services:
       - "--private_key=/testlog/test-ecdsa-priv.pem"
       - "--checkpoint_interval=2s"
       - "--enable_publication_awaiter=false"
-      - "--roots_remote_fetch_url=${ROOTS_REMOTE_FETCH_URL}"
+      - "--roots_remote_fetch_url=http://remote_root_server:8080/roots.csv"
       - "--roots_remote_fetch_interval=${ROOTS_REMOTE_FETCH_INTERVAL}"
       - "--roots_reject_fingerprints=${ROOTS_REJECT_FINGERPRINTS}"
     volumes:
@@ -29,6 +29,26 @@ services:
       interval: 1s
       timeout: 1s
       retries: 60
+    networks:
+      - tesseract-net
+
+  remote_root_server:
+    build:
+      context: ../../../../
+      dockerfile: internal/remote_root_server/Dockerfile
+    container_name: remote_root_server
+    entrypoint: /bin/remote_root_server
+    command:
+      - "--http_endpoint=:8080"
+      - "--tesseract_url=http://tesseract:6962"
+      - "--roots_backup_dir=/testlog/roots"
+      - "--roots_reject_fingerprints=${ROOTS_REJECT_FINGERPRINTS}"
+      - "--exit_on_success=true"
+    volumes:
+      - type: bind
+        source: ../../../../testlog
+        target: /testlog
+        read_only: true
     networks:
       - tesseract-net
 

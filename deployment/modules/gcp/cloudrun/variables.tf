@@ -28,6 +28,31 @@ variable "server_docker_image" {
   type        = string
 }
 
+variable "additional_containers" {
+  description = "List of detailed container definitions to run as sidecars. Each item must match the structure required by the google_cloud_run_v2_service resource."
+  type = list(object({
+    name  = string
+    image = string
+    args  = list(string)
+    ports = optional(list(object({
+      container_port = number
+      name           = optional(string)
+    })))
+    resources = optional(object({
+      limits = optional(map(string))
+    }))
+    env = optional(list(object({
+      name  = string
+      value = optional(string)
+    })))
+    volume_mounts = optional(list(object({
+      name       = string
+      mount_path = string
+    })))
+  }))
+  default = []
+}
+
 variable "bucket" {
   description = "Log GCS bucket"
   type        = string

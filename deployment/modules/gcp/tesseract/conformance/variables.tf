@@ -31,7 +31,7 @@ variable "location" {
 }
 
 variable "env" {
-  description = "Unique identifier for the env, e.g. dev or ci or prod"
+  description = "Name of the environment (prod, ci, etc)."
   type        = string
 }
 
@@ -42,6 +42,11 @@ variable "docker_env" {
 
 variable "server_docker_image" {
   description = "The full image URL (path & tag) for the Docker image to deploy in Cloud Run"
+  type        = string
+}
+
+variable "remote_root_server_docker_image" {
+  description = "Docker image for the remote root server sidecar."
   type        = string
 }
 
@@ -102,3 +107,5 @@ variable "roots_reject_fingerprints" {
   type        = list(string)
   default     = []
 }
+
+

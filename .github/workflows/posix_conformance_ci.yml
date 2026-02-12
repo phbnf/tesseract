@@ -40,57 +40,35 @@ jobs:
           # Ensure cleanup happens on exit
           trap "docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml logs; docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml down" EXIT
 
-          # Start Tesseract
-          echo "Starting Tesseract..."
+          # Start all services detached
+          # Tesseract, Remote Root Server, and Hammer
+          echo "Starting all services detached..."
           ls -la ${{ github.workspace }}/testlog
+          
           docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml \
-            --env-file="${{ github.workspace }}/env" up -d tesseract
-          
-          # Wait for Tesseract to be ready
-          echo "Waiting for Tesseract to be ready..."
-          sleep 15s
-          docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml logs tesseract
-          
-          # Verify Roots
-          echo "Verifying roots..."
-          curl -s http://localhost:6962/ct/v1/get-roots > roots.json
-          
-          # Check for Manual Root (test_root_ca_cert.pem) - usually always present
-          # Check for Remote Accepted Root (test_intermediate_ca_cert.pem from CSV)
-          # Check for Remote Rejected Root (fake-ca.cert from CSV) -> SHOULD BE ABSENT via rejection
-          
-          jq -r ".certificates[]" roots.json | while read pem; do
-            echo "-----BEGIN CERTIFICATE-----" > cert.pem
-            echo "$pem" >> cert.pem
-            echo "-----END CERTIFICATE-----" >> cert.pem
-            openssl x509 -inform PEM -outform DER -in cert.pem | sha256sum | awk '{print $1}' >> fingerprints.txt
-          done
-          
-          echo "Found fingerprints:"
-          cat fingerprints.txt
-          
-          if grep -q "6f17040af430aeb709c1937164847b75e58dee6a2de119fcd2ca627911012b7b" fingerprints.txt; then
-            echo "Found expected accepted remote root."
-          else
-            echo "FAILED: Did not find accepted remote root."
-            exit 1
-          fi
-          
-          if grep -q "5f21d7b05373d015fa05c4e80b4bfdbb29f8e8655f5b29bb2aaf7c0910530637" fingerprints.txt; then
-            echo "FAILED: Found rejected remote root."
-            exit 1
-          else
-             echo "Success: Rejected root is absent."
-          fi
-          
-          echo "Root verification succeeded."
+            --env-file="${{ github.workspace }}/env" up -d
 
-          # Start Hammer
-          echo "Starting Hammer..."
-          docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml \
-            --env-file="${{ github.workspace }}/env" up \
-            --exit-code-from hammer \
-            hammer
+          echo "Waiting for hammer to exit..."
+          HAMMER_EXIT_CODE=$(docker wait hammer)
+          echo "Hammer exited with $HAMMER_EXIT_CODE"
+          
+          if [ "$HAMMER_EXIT_CODE" != "0" ]; then
+            echo "Hammer failed."
+            docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml logs
+            exit $HAMMER_EXIT_CODE
+          fi
+
+          # Check Remote Root Server exit code
+          SERVER_EXIT_CODE=$(docker wait remote_root_server)
+          echo "Remote Root Server exited with $SERVER_EXIT_CODE"
+          
+          if [ "$SERVER_EXIT_CODE" != "0" ]; then
+             echo "FAILED: Remote Root Server failed (exit code $SERVER_EXIT_CODE)."
+             docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml logs remote_root_server
+             exit 1
+          fi
+          
+          echo "Remote Root Server verification successful."
 
       - name: fsck the log
         shell: bash

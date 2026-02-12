@@ -147,51 +147,85 @@ resource "aws_ecs_task_definition" "conformance" {
   execution_role_arn = var.ecs_execution_role
   # ARN of IAM role that allows your Amazon ECS container task to make calls to other AWS services.
   task_role_arn = var.ecs_conformance_task_role
-  container_definitions = jsonencode([{
-    "name" : "${local.name}-conformance",
-    "image" : "${var.ecr_registry}/${var.ecr_repository_conformance}",
-    "cpu" : 0,
-    "portMappings" : [{
-      "name" : "conformance-${local.port}-tcp",
-      "containerPort" : local.port,
-      "hostPort" : local.port,
-      "protocol" : "tcp",
-      "appProtocol" : "http"
-    }],
-    "essential" : true,
-    "command" : flatten([
-      "--http_endpoint=:${local.port}",
-      "--roots_pem_file=/bin/test_root_ca_cert.pem",
-      formatlist("--roots_reject_fingerprints=%s", var.roots_reject_fingerprints),
-      "--origin=ci-static-ct",
-      "--path_prefix=ci-static-ct",
-      "--bucket=${module.storage.s3_bucket_name}",
-      "--db_user=tesseract",
-      "--db_password=${module.storage.rds_aurora_cluster_master_user_secret_unsafe}",
-      "--db_name=tesseract",
-      "--db_host=${module.storage.rds_aurora_cluster_endpoint}",
-      "--db_port=3306",
-      "--signer_public_key_secret_name=${module.secretsmanager.ecdsa_p256_public_key_id}",
-      "--signer_private_key_secret_name=${module.secretsmanager.ecdsa_p256_private_key_id}",
-      "--antispam_db_name=${var.antispam_database_name}",
-      "--inmemory_antispam_cache_size=256k",
-      "--enable_publication_awaiter=true",
-      "--roots_remote_fetch_url=${var.roots_remote_fetch_url}",
-      "--roots_remote_fetch_interval=${var.roots_remote_fetch_interval}",
-      "-v=2",
-    ]),
-    "logConfiguration" : {
-      "logDriver" : "awslogs",
-      "options" : {
-        "awslogs-group" : "/ecs/${local.name}",
-        "mode" : "non-blocking",
-        "awslogs-create-group" : "true",
-        "max-buffer-size" : "25m",
-        "awslogs-region" : var.region,
-        "awslogs-stream-prefix" : "ecs"
+  container_definitions = jsonencode([
+    {
+      "name" : "${local.name}-conformance",
+      "image" : "${var.ecr_registry}/${var.ecr_repository_conformance}",
+      "cpu" : 0,
+      "portMappings" : [{
+        "name" : "conformance-${local.port}-tcp",
+        "containerPort" : local.port,
+        "hostPort" : local.port,
+        "protocol" : "tcp",
+        "appProtocol" : "http"
+      }],
+      "essential" : true,
+      "command" : flatten([
+        "--http_endpoint=:${local.port}",
+        "--roots_pem_file=/bin/test_root_ca_cert.pem",
+        formatlist("--roots_reject_fingerprints=%s", var.roots_reject_fingerprints),
+        "--origin=ci-static-ct",
+        "--path_prefix=ci-static-ct",
+        "--bucket=${module.storage.s3_bucket_name}",
+        "--db_user=tesseract",
+        "--db_password=${module.storage.rds_aurora_cluster_master_user_secret_unsafe}",
+        "--db_name=tesseract",
+        "--db_host=${module.storage.rds_aurora_cluster_endpoint}",
+        "--db_port=3306",
+        "--signer_public_key_secret_name=${module.secretsmanager.ecdsa_p256_public_key_id}",
+        "--signer_private_key_secret_name=${module.secretsmanager.ecdsa_p256_private_key_id}",
+        "--antispam_db_name=${var.antispam_database_name}",
+        "--inmemory_antispam_cache_size=256k",
+        "--enable_publication_awaiter=true",
+        "--roots_remote_fetch_url=${var.roots_remote_fetch_url}",
+        "--roots_remote_fetch_interval=${var.roots_remote_fetch_interval}",
+        "-v=2",
+      ]),
+      "logConfiguration" : {
+        "logDriver" : "awslogs",
+        "options" : {
+          "awslogs-group" : "/ecs/${local.name}",
+          "mode" : "non-blocking",
+          "awslogs-create-group" : "true",
+          "max-buffer-size" : "25m",
+          "awslogs-region" : var.region,
+          "awslogs-stream-prefix" : "ecs"
+        },
       },
+      "dependsOn": [{
+        "containerName": "${local.name}-remote-root-server",
+        "condition": "START"
+      }]
     },
-  }])
+    {
+      "name" : "${local.name}-remote-root-server",
+      "image" : "${var.ecr_registry}/${var.ecr_repository_remote_root_server}",
+      "cpu" : 0,
+      "portMappings" : [{
+        "name" : "remote-root-server-8080-tcp",
+        "containerPort" : 8080,
+        "hostPort" : 8080,
+        "protocol" : "tcp"
+      }],
+      "essential" : true,
+      "command" : [
+        "--http_endpoint=:8080",
+        "--tesseract_url=http://localhost:${local.port}",
+        "--verify_interval=5s"
+      ],
+      "logConfiguration" : {
+        "logDriver" : "awslogs",
+        "options" : {
+          "awslogs-group" : "/ecs/${local.name}-remote-root-server",
+          "mode" : "non-blocking",
+          "awslogs-create-group" : "true",
+          "max-buffer-size" : "25m",
+          "awslogs-region" : var.region,
+          "awslogs-stream-prefix" : "ecs"
+        },
+      },
+    }
+  ])
 
   runtime_platform {
     operating_system_family = "LINUX"
@@ -289,73 +323,4 @@ resource "aws_ecs_task_definition" "hammer" {
   ]
 }
 
-resource "aws_ecs_task_definition" "verify_roots" {
-  family                   = "verify_roots"
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
-  cpu                      = 256
-  memory                   = 512
-  execution_role_arn       = var.ecs_execution_role
-  container_definitions = jsonencode([{
-    "name" : "verify_roots",
-    "image" : "${var.ecr_registry}/${var.ecr_repository_conformance}",
-    "cpu" : 0,
-    "essential" : true,
-    "command" : [
-      "sh", "-c",
-      <<EOT
-        apk add --no-cache openssl jq
 
-        LOG_URL="http://${aws_service_discovery_service.conformance.name}.${aws_service_discovery_private_dns_namespace.internal.name}:${local.port}"
-        echo "Verifying roots at $LOG_URL"
-
-        wget -qO- "$LOG_URL/ct/v1/get-roots" > /tmp/roots.json
-        
-        jq -r ".certificates[]" /tmp/roots.json | while read pem; do
-          echo "-----BEGIN CERTIFICATE-----" > /tmp/cert.pem
-          echo "$pem" >> /tmp/cert.pem
-          echo "-----END CERTIFICATE-----" >> /tmp/cert.pem
-          openssl x509 -inform PEM -outform DER -in /tmp/cert.pem | sha256sum | awk '{print $1}' >> /tmp/fingerprints.txt
-        done
-        
-        cat /tmp/fingerprints.txt
-        
-        if grep -q "6f17040af430aeb709c1937164847b75e58dee6a2de119fcd2ca627911012b7b" /tmp/fingerprints.txt; then
-          echo "Found expected accepted remote root."
-        else
-          echo "FAILED: Did not find accepted remote root."
-          exit 1
-        fi
-        
-        if grep -q "5f21d7b05373d015fa05c4e80b4bfdbb29f8e8655f5b29bb2aaf7c0910530637" /tmp/fingerprints.txt; then
-          echo "FAILED: Found rejected remote root."
-          exit 1
-        else
-           echo "Success: Rejected root is absent."
-        fi
-        
-        echo "Root verification succeeded."
-      EOT
-    ],
-    "logConfiguration" : {
-      "logDriver" : "awslogs",
-      "options" : {
-        "awslogs-group" : "/ecs/${local.name}-verify_roots",
-        "mode" : "non-blocking",
-        "awslogs-create-group" : "true",
-        "max-buffer-size" : "25m",
-        "awslogs-region" : var.region,
-        "awslogs-stream-prefix" : "ecs"
-      },
-    },
-  }])
-
-  runtime_platform {
-    operating_system_family = "LINUX"
-    cpu_architecture        = "X86_64"
-  }
-
-  depends_on = [
-    aws_service_discovery_service.conformance
-  ]
-}

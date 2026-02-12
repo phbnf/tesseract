@@ -20,10 +20,9 @@ module "artifactregistry" {
 
 # Cloud Build
 
-locals {
-  cloudbuild_service_account   = "cloudbuild-${var.env}-sa@${var.project_id}.iam.gserviceaccount.com"
   artifact_repo                = "${var.location}-docker.pkg.dev/${var.project_id}/${module.artifactregistry.docker.name}"
   conformance_gcp_docker_image = "${local.artifact_repo}/conformance-gcp"
+  remote_root_server_docker_image = "${local.artifact_repo}/remote-root-server"
   origin                       = "${var.env}-conformance.ct.transparency.dev" # Must match the origin in the deplyment/gcp/static-ct-ci/logs/ci/terragrunt.hcl file.
   safe_origin                 = replace("${local.origin}", "/[^-a-zA-Z0-9]/", "-")
 }
@@ -147,6 +146,19 @@ resource "google_cloudbuild_trigger" "build_trigger" {
       wait_for = ["docker_build_tesseract_gcp"]
     }
 
+    ## Build Remote Root Server Docker container image.
+    step {
+      id   = "docker_build_remote_root_server"
+      name = "gcr.io/cloud-builders/docker"
+      args = [
+        "build",
+        "-t", "${local.remote_root_server_docker_image}:$SHORT_SHA",
+        "-t", "${local.remote_root_server_docker_image}:latest",
+        "-f", "./internal/remote_root_server/Dockerfile",
+        "."
+      ]
+    }
+
     ## Push the conformance Docker container image to Artifact Registry.
     step {
       id   = "docker_push_conformance_gcp"
@@ -157,6 +169,18 @@ resource "google_cloudbuild_trigger" "build_trigger" {
         local.conformance_gcp_docker_image
       ]
       wait_for = ["docker_build_conformance_gcp"]
+    }
+
+    ## Push the remote root server Docker container image to Artifact Registry.
+    step {
+      id   = "docker_push_remote_root_server"
+      name = "gcr.io/cloud-builders/docker"
+      args = [
+        "push",
+        "--all-tags",
+        local.remote_root_server_docker_image
+      ]
+      wait_for = ["docker_build_remote_root_server"]
     }
 
     ## Apply the terragrunt config.
@@ -174,10 +198,11 @@ resource "google_cloudbuild_trigger" "build_trigger" {
         "TF_IN_AUTOMATION=1",
         "TF_INPUT=false",
         "TF_VAR_project_id=${var.project_id}",
-        "TF_VAR_roots_remote_fetch_url=https://raw.githubusercontent.com/${var.github_owner}/tesseract/$COMMIT_SHA/testdata/roots.csv",
-        "TF_VAR_roots_reject_fingerprints=[\"5F21D7B05373D015FA05C4E80B4BFDBB29F8E8655F5B29BB2AAF7C0910530637\""
+        "TF_VAR_roots_remote_fetch_url=http://localhost:8080/roots.csv",
+        "TF_VAR_roots_reject_fingerprints=[\"5F21D7B05373D015FA05C4E80B4BFDBB29F8E8655F5B29BB2AAF7C0910530637\"",
+        "TF_VAR_remote_root_server_docker_image=${local.remote_root_server_docker_image}:latest"
       ]
-      wait_for = ["preclean_env", "create_test_keys", "docker_push_conformance_gcp"]
+      wait_for = ["preclean_env", "create_test_keys", "docker_push_conformance_gcp", "docker_push_remote_root_server"]
     }
 
     ## Print Terragrunt output to files.
@@ -209,51 +234,6 @@ resource "google_cloudbuild_trigger" "build_trigger" {
         curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/${local.cloudbuild_service_account}/identity?audience=$(cat /workspace/conformance_url)" > /workspace/cb_identity
       EOT
       wait_for = ["terraform_apply_conformance_ci"]
-    }
-
-    ## Verify Roots
-    step {
-      id       = "verify_roots"
-      name     = "golang"
-      script   = <<EOT
-        apt update && apt install -y jq
-        
-        # Helper function to check fingerprint
-        # ...
-        
-        LOG_URL=$(cat /workspace/conformance_url)
-        IDENTITY_TOKEN=$(cat /workspace/cb_identity)
-        
-        echo "Verifying roots at $LOG_URL"
-        
-        wget --header "Authorization: Bearer $IDENTITY_TOKEN" -qO- "$LOG_URL/ct/v1/get-roots" > /workspace/roots.json
-        
-        jq -r ".certificates[]" /workspace/roots.json | while read pem; do
-          echo "-----BEGIN CERTIFICATE-----" > /workspace/cert.pem
-          echo "$pem" >> /workspace/cert.pem
-          echo "-----END CERTIFICATE-----" >> /workspace/cert.pem
-          openssl x509 -inform PEM -outform DER -in /workspace/cert.pem | sha256sum | awk '{print $1}' >> /workspace/fingerprints.txt
-        done
-        
-        cat /workspace/fingerprints.txt
-        
-        if grep -q "6f17040af430aeb709c1937164847b75e58dee6a2de119fcd2ca627911012b7b" /workspace/fingerprints.txt; then
-          echo "Found expected accepted remote root."
-        else
-          echo "FAILED: Did not find accepted remote root."
-          exit 1
-        fi
-        
-        if grep -q "5f21d7b05373d015fa05c4e80b4bfdbb29f8e8655f5b29bb2aaf7c0910530637" /workspace/fingerprints.txt; then
-          echo "FAILED: Found rejected remote root."
-          exit 1
-        else
-           echo "Success: Rejected root is absent."
-        fi
-        
-        echo "Root verification succeeded."
-      EOT
-      wait_for = ["bearer_token"]
     }
 
     ## Test against the conformance server with CT Hammer.

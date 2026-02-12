@@ -21,6 +21,7 @@ env:
   TG_DIR: "deployment/live/aws/conformance/ci/"
   ECR_REPOSITORY_CONFORMANCE: static-ct-ci/conformance:latest
   ECR_REPOSITORY_HAMMER: static-ct-ci/hammer:latest
+  ECR_REPOSITORY_REMOTE_ROOT_SERVER: static-ct-ci/remote-root-server:latest
   AWS_REGION: us-east-1
 
 jobs:
@@ -53,6 +54,17 @@ jobs:
         run: |
           docker build -f ./cmd/tesseract/aws/Dockerfile . -t tesseract-aws:latest
           docker build -f ./cmd/tesseract/aws/ci/Dockerfile . -t "$ECR_REGISTRY/$ECR_REPOSITORY"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY"
+          echo "Pushed image to $ECR_REGISTRY/$ECR_REPOSITORY"
+
+      # Build the remote root server image and push it to ECR.
+      - name: Build, tag, and push Remote Root Server image to Amazon ECR
+        shell: bash
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY_REMOTE_ROOT_SERVER }}
+        run: |
+          docker build -f ./internal/remote_root_server/Dockerfile . -t "$ECR_REGISTRY/$ECR_REPOSITORY"
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY"
           echo "Pushed image to $ECR_REGISTRY/$ECR_REPOSITORY"
       
@@ -92,35 +104,12 @@ jobs:
         env:
           ECS_EXECUTION_ROLE: ${{ secrets.AWS_IAMROLE_ECS_EXECUTION }}
           ECS_CONFORMANCE_TASK_ROLE: ${{ secrets.AWS_IAMROLE_ECS_CONFORMANCE_TASK }}
-          TF_VAR_roots_remote_fetch_url: "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/testdata/roots.csv"
+          TF_VAR_roots_remote_fetch_url: "http://localhost:8080/roots.csv"
           TF_VAR_roots_reject_fingerprints: '["5f21d7b05373d015fa05c4e80b4bfdbb29f8e8655f5b29bb2aaf7c0910530637"]'
           INPUT_POST_EXEC_1: |
             echo "ECS_CLUSTER=$(terragrunt output -raw ecs_cluster)" >> "$GITHUB_ENV"
           INPUT_POST_EXEC_2: |
             echo "VPC_SUBNETS=$(terragrunt output -json vpc_subnets)" >> "$GITHUB_ENV"
-
-      # Run Verify Roots task
-      - name: Run Verify Roots
-        shell: bash
-        run: |
-          echo "Will launch a verify_roots ECS task."
-          VERIFIER_ARN=$(aws ecs run-task \
-            --cluster="$ECS_CLUSTER" \
-            --task-definition=verify_roots \
-            --count=1 \
-            --launch-type=FARGATE \
-            --network-configuration='{"awsvpcConfiguration": {"assignPublicIp":"ENABLED","subnets": '$VPC_SUBNETS'}}' \
-            --query 'tasks[0].taskArn')
-          echo "Verify Roots task running, ARN: $VERIFIER_ARN."
-          echo "Waiting for task to stop..."
-          aws ecs wait tasks-stopped --cluster="$ECS_CLUSTER" --tasks=[$VERIFIER_ARN]
-          echo "The task has stopped. Fetching exit code."
-          EXIT_CODE=$(aws ecs describe-tasks --cluster="$ECS_CLUSTER" --tasks=[$VERIFIER_ARN] --query 'tasks[0].containers[0].exitCode')
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "Verify Roots failed with exit code $EXIT_CODE"
-            exit $EXIT_CODE
-          fi
-          echo "Verify Roots succeeded."
 
       # Run CT Hammer using the defined task definition.
       # This step returns the CT Hammer task's exit code.

@@ -1,5 +1,5 @@
 terraform {
-  source = "${get_repo_root()}/deployment/modules/gcp//tesseract/cloudrun"
+  source = "${get_repo_root()}/deployment/modules/gcp//tesseract/conformance"
 }
 
 locals {
@@ -11,6 +11,7 @@ locals {
   log_public_key_secret_name  = "projects/223810646869/secrets/${local.safe_origin}-log-public/versions/1"
   log_private_key_secret_name = "projects/223810646869/secrets/${local.safe_origin}-log-secret/versions/1"
   server_docker_image         = "${include.root.locals.location}-docker.pkg.dev/${include.root.locals.project_id}/docker-${local.env}/conformance-gcp:latest"
+  remote_root_server_docker_image = "${include.root.locals.location}-docker.pkg.dev/${include.root.locals.project_id}/docker-${local.env}/remote-root-server:latest"
   ephemeral                   = true
 }
 
