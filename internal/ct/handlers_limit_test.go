@@ -34,10 +34,7 @@ func TestPostHandlersRejectLargeBody(t *testing.T) {
 	for path, handler := range postHandlers(t, handlers) {
 		t.Run(path, func(t *testing.T) {
 			// Wrap the handler to mimic what ctlog.go does.
-			wrappedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				r.Body = http.MaxBytesReader(w, r.Body, int64(MaxBodySize))
-				handler.ServeHTTP(w, r)
-			})
+			wrappedHandler := http.MaxBytesHandler(handler, int64(MaxBodySize))
 			s := httptest.NewServer(wrappedHandler)
 			defer s.Close()
 
