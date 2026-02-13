@@ -28,11 +28,21 @@ var (
 	verifyInterval = flag.Duration("verify_interval", 5*time.Second, "Interval between verification attempts")
 	rootsReject    = flag.String("roots_reject_fingerprints", "", "Comma-separated list of SHA256 fingerprints to reject")
 	exitOnSuccess  = flag.Bool("exit_on_success", false, "Exit with code 0 after successful verification")
+	maxRunTime     = flag.Duration("max_runtime", 0, "Maximum duration to run before exiting (0 means run indefinitely)")
 )
 
 func main() {
 	klog.InitFlags(nil)
 	flag.Parse()
+
+	if *maxRunTime > 0 {
+		go func() {
+			klog.Infof("Will fail after %v.", *maxRunTime)
+			time.Sleep(*maxRunTime)
+			klog.Infof("max_runtime of %v reached. Exiting.", *maxRunTime)
+			os.Exit(1)
+		}()
+	}
 
 	// Generate CSV content
 	csvContent, fingerprints, err := generateRootsCSV()
@@ -206,10 +216,6 @@ func verifyRoots(fingerprints []string, rejected map[string]struct{}) error {
 		files, err := os.ReadDir(*rootsBackupDir)
 		if err != nil {
 			return fmt.Errorf("failed to read roots backup dir: %v", err)
-		}
-
-		if len(files) == 0 {
-			return fmt.Errorf("no roots found in backup dir %s", *rootsBackupDir)
 		}
 
 		// Prepare map of expected roots that should be in backup
