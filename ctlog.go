@@ -96,6 +96,7 @@ var sysTimeSource = systemTimeSource{}
 // parses it, and loads resources to validate chains.
 func newChainValidator(ctx context.Context, cfg ChainValidationConfig) (ct.ChainValidator, error) {
 	// Load the trusted roots.
+	fmt.Println("test")
 	if cfg.RootsPEMFile == "" {
 		return nil, errors.New("empty rootsPemFile")
 	}
