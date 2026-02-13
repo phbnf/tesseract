@@ -255,6 +255,26 @@ func TestPostHandlersRejectGet(t *testing.T) {
 	}
 }
 
+func TestAddChainLargeBody(t *testing.T) {
+	log, _ := setupTestLog(t)
+	server := setupTestServer(t, log, path.Join(prefix, rfc6962.AddChainPath), hOpts())
+	defer server.Close()
+
+	// Create a large body (e.g. 5MB)
+	largeBody := make([]byte, 5*1024*1024)
+
+	resp, err := http.Post(server.URL+rfc6962.AddChainPath, "application/json", bytes.NewReader(largeBody))
+	if err != nil {
+		t.Fatalf("http.Post failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// We expect 413 Payload Too Large now.
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Errorf("Expected 413 Payload Too Large, got %d", resp.StatusCode)
+	}
+}
+
 func TestGetHandlersRejectPost(t *testing.T) {
 	log, _ := setupTestLog(t)
 	handlers := NewPathHandlers(t.Context(), hOpts(), log)
