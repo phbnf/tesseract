@@ -10,40 +10,42 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"k8s.io/klog/v2"
+
 	"github.com/transparency-dev/tesseract/internal/testdata"
 )
 
 var (
-	httpEndpoint    = flag.String("http_endpoint", ":8080", "The endpoint to run the server on")
-	tesseractURL    = flag.String("tesseract_url", "http://localhost:6962", "Base URL of the Tesseract server to verify")
-	rootsBackupDir  = flag.String("roots_backup_dir", "", "Directory where Tesseract backs up roots (optional)")
-	verifyInterval  = flag.Duration("verify_interval", 5*time.Second, "Interval between verification attempts")
-	rootsReject     = flag.String("roots_reject_fingerprints", "", "Comma-separated list of SHA256 fingerprints to reject")
-	exitOnSuccess   = flag.Bool("exit_on_success", false, "Exit with code 0 after successful verification")
+	httpEndpoint   = flag.String("http_endpoint", ":8080", "The endpoint to run the server on")
+	tesseractURL   = flag.String("tesseract_url", "http://localhost:6962", "Base URL of the Tesseract server to verify")
+	rootsBackupDir = flag.String("roots_backup_dir", "", "Directory where Tesseract backs up roots (optional)")
+	verifyInterval = flag.Duration("verify_interval", 5*time.Second, "Interval between verification attempts")
+	rootsReject    = flag.String("roots_reject_fingerprints", "", "Comma-separated list of SHA256 fingerprints to reject")
+	exitOnSuccess  = flag.Bool("exit_on_success", false, "Exit with code 0 after successful verification")
 )
 
 func main() {
+	klog.InitFlags(nil)
 	flag.Parse()
 
 	// Generate CSV content
 	csvContent, fingerprints, err := generateRootsCSV()
 	if err != nil {
-		slog.Error("Failed to generate roots CSV", "err", err)
+		klog.Errorf("Failed to generate roots CSV: %v", err)
 		os.Exit(1)
 	}
 
 	http.HandleFunc("/roots.csv", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/csv")
 		if _, err := w.Write([]byte(csvContent)); err != nil {
-			slog.Warn("Failed to serve roots.csv", "err", err)
+			klog.Warningf("Failed to serve roots.csv: %v", err)
 		}
-		slog.Info("Served roots.csv", "remote_addr", r.RemoteAddr)
+		klog.Infof("Served roots.csv: remote_addr=%v", r.RemoteAddr)
 	})
 
 	rejected := make(map[string]struct{})
@@ -59,9 +61,9 @@ func main() {
 	// Start verification in background
 	go verifyLoop(fingerprints, rejected)
 
-	slog.Info("Starting remote_root_server", "endpoint", *httpEndpoint)
+	klog.Infof("Starting remote_root_server: endpoint=%v", *httpEndpoint)
 	if err := http.ListenAndServe(*httpEndpoint, nil); err != nil {
-		slog.Error("Server failed", "err", err)
+		klog.Errorf("Server failed: %v", err)
 		os.Exit(1)
 	}
 }
@@ -71,7 +73,7 @@ func generateRootsCSV() (string, []string, error) {
 	var fingerprints []string
 	var b strings.Builder
 	w := csv.NewWriter(&b)
-	
+
 	// Write header
 	if err := w.Write([]string{"Subject", "CA Owner", "X.509 Certificate (PEM)", "SHA-256 Fingerprint", "Intended Use Case(s) Served"}); err != nil {
 		return "", nil, err
@@ -92,7 +94,7 @@ func generateRootsCSV() (string, []string, error) {
 		fingerprints = append(fingerprints, fingerprintHex)
 
 		subject := cert.Subject.String()
-		caOwner := subject 
+		caOwner := subject
 
 		record := []string{
 			subject,
@@ -115,9 +117,9 @@ func verifyLoop(fingerprints []string, rejected map[string]struct{}) {
 	if *exitOnSuccess {
 		// Run immediately once
 		if err := verifyRoots(fingerprints, rejected); err != nil {
-			slog.Error("Verification FAILED", "err", err)
+			klog.Errorf("Verification FAILED: %v", err)
 		} else {
-			slog.Info("Verification PASSED. Exiting.")
+			klog.Infof("Verification PASSED. Exiting.")
 			os.Exit(0)
 		}
 	}
@@ -127,11 +129,11 @@ func verifyLoop(fingerprints []string, rejected map[string]struct{}) {
 
 	for range ticker.C {
 		if err := verifyRoots(fingerprints, rejected); err != nil {
-			slog.Error("Verification FAILED", "err", err)
+			klog.Errorf("Verification FAILED: %v", err)
 		} else {
-			slog.Debug("Verification PASSED")
+			klog.V(1).Infof("Verification PASSED")
 			if *exitOnSuccess {
-				slog.Info("Exiting after successful verification.")
+				klog.Infof("Exiting after successful verification.")
 				os.Exit(0)
 			}
 		}
@@ -146,7 +148,7 @@ func verifyRoots(fingerprints []string, rejected map[string]struct{}) error {
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			slog.Warn("resp.Body.Close()", "err", err)
+			klog.Warningf("resp.Body.Close(): %v", err)
 		}
 	}()
 
@@ -171,7 +173,7 @@ func verifyRoots(fingerprints []string, rejected map[string]struct{}) error {
 		fingerprint := sha256.Sum256(certDER)
 		fp := strings.ToLower(hex.EncodeToString(fingerprint[:]))
 		foundFingerprints[fp] = struct{}{}
-		
+
 		if _, ok := rejected[fp]; ok {
 			return fmt.Errorf("found rejected root: %s", fp)
 		}
@@ -191,7 +193,7 @@ func verifyRoots(fingerprints []string, rejected map[string]struct{}) error {
 		if !isFound {
 			return fmt.Errorf("missing expected root: %s", fp)
 		}
-		slog.Debug("Found expected root in get-roots's response", "fingerprint", fp)
+		klog.V(1).Infof("Found expected root in get-roots's response: fingerprint=%v", fp)
 	}
 
 	// 2. Check backup dir (if configured)
@@ -223,7 +225,7 @@ func verifyRoots(fingerprints []string, rejected map[string]struct{}) error {
 
 			if _, ok := notInBackupFingerprints[fp]; ok {
 				delete(notInBackupFingerprints, fp)
-				slog.Debug("Found valid root in backup", "fingerprint", fp)
+				klog.V(1).Infof("Found valid root in backup: fingerprint=%v", fp)
 			} else {
 				// If it's not in notInBackupFingerprints, it's either an unexpected root
 				// or a duplicate (not possible in a single directory).
