@@ -24,10 +24,6 @@ jobs:
           cat ${{ github.workspace }}/env
 
       - name: Spin up POSIX tesseract CI test
-        env:
-          ROOTS_REMOTE_FETCH_URL: "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/testdata/roots.csv"
-          ROOTS_REMOTE_FETCH_INTERVAL: "10s"
-          ROOTS_REJECT_FINGERPRINTS: "5f21d7b05373d015fa05c4e80b4bfdbb29f8e8655f5b29bb2aaf7c0910530637"
         shell: bash
         run: |
           echo "Launching POSIX tesseract"

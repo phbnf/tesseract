@@ -43,7 +43,10 @@ module "cloudrun" {
       args  = [
         "--http_endpoint=:8080",
         "--tesseract_url=http://localhost:6962",
-        "--verify_interval=5s"
+        "--exit_on_success=true",
+        "--verify_interval=5s",
+        "--max_runtime=3m",
+        "--v=1"
       ]
       ports = [{
         container_port = 8080
