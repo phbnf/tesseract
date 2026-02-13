@@ -44,6 +44,7 @@ services:
       - "--roots_backup_dir=/testlog/roots"
       - "--roots_reject_fingerprints=${ROOTS_REJECT_FINGERPRINTS}"
       - "--exit_on_success=true"
+      - "--log-level=DEBUG"
     volumes:
       - type: bind
         source: ../../../../testlog
