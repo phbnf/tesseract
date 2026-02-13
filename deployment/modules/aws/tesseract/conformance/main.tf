@@ -147,51 +147,88 @@ resource "aws_ecs_task_definition" "conformance" {
   execution_role_arn = var.ecs_execution_role
   # ARN of IAM role that allows your Amazon ECS container task to make calls to other AWS services.
   task_role_arn = var.ecs_conformance_task_role
-  container_definitions = jsonencode([{
-    "name" : "${local.name}-conformance",
-    "image" : "${var.ecr_registry}/${var.ecr_repository_conformance}",
-    "cpu" : 0,
-    "portMappings" : [{
-      "name" : "conformance-${local.port}-tcp",
-      "containerPort" : local.port,
-      "hostPort" : local.port,
-      "protocol" : "tcp",
-      "appProtocol" : "http"
-    }],
-    "essential" : true,
-    "command" : flatten([
-      "--http_endpoint=:${local.port}",
-      "--roots_pem_file=/bin/test_root_ca_cert.pem",
-      formatlist("--roots_reject_fingerprints=%s", var.roots_reject_fingerprints),
-      "--origin=ci-static-ct",
-      "--path_prefix=ci-static-ct",
-      "--bucket=${module.storage.s3_bucket_name}",
-      "--db_user=tesseract",
-      "--db_password=${module.storage.rds_aurora_cluster_master_user_secret_unsafe}",
-      "--db_name=tesseract",
-      "--db_host=${module.storage.rds_aurora_cluster_endpoint}",
-      "--db_port=3306",
-      "--signer_public_key_secret_name=${module.secretsmanager.ecdsa_p256_public_key_id}",
-      "--signer_private_key_secret_name=${module.secretsmanager.ecdsa_p256_private_key_id}",
-      "--antispam_db_name=${var.antispam_database_name}",
-      "--inmemory_antispam_cache_size=256k",
-      "--enable_publication_awaiter=true",
-      "--roots_remote_fetch_url=${var.roots_remote_fetch_url}",
-      "--roots_remote_fetch_interval=${var.roots_remote_fetch_interval}",
-      "-v=2",
-    ]),
-    "logConfiguration" : {
-      "logDriver" : "awslogs",
-      "options" : {
-        "awslogs-group" : "/ecs/${local.name}",
-        "mode" : "non-blocking",
-        "awslogs-create-group" : "true",
-        "max-buffer-size" : "25m",
-        "awslogs-region" : var.region,
-        "awslogs-stream-prefix" : "ecs"
+  container_definitions = jsonencode([
+    {
+      "name" : "${local.name}-conformance",
+      "image" : "${var.ecr_registry}/${var.ecr_repository_conformance}",
+      "cpu" : 0,
+      "portMappings" : [{
+        "name" : "conformance-${local.port}-tcp",
+        "containerPort" : local.port,
+        "hostPort" : local.port,
+        "protocol" : "tcp",
+        "appProtocol" : "http"
+      }],
+      "essential" : true,
+      "command" : flatten([
+        "--http_endpoint=:${local.port}",
+        "--roots_pem_file=/bin/test_root_ca_cert.pem",
+        formatlist("--roots_reject_fingerprints=%s", var.roots_reject_fingerprints),
+        "--origin=ci-static-ct",
+        "--path_prefix=ci-static-ct",
+        "--bucket=${module.storage.s3_bucket_name}",
+        "--db_user=tesseract",
+        "--db_password=${module.storage.rds_aurora_cluster_master_user_secret_unsafe}",
+        "--db_name=tesseract",
+        "--db_host=${module.storage.rds_aurora_cluster_endpoint}",
+        "--db_port=3306",
+        "--signer_public_key_secret_name=${module.secretsmanager.ecdsa_p256_public_key_id}",
+        "--signer_private_key_secret_name=${module.secretsmanager.ecdsa_p256_private_key_id}",
+        "--antispam_db_name=${var.antispam_database_name}",
+        "--inmemory_antispam_cache_size=256k",
+        "--enable_publication_awaiter=true",
+        "--roots_remote_fetch_url=${var.roots_remote_fetch_url}",
+        "--roots_remote_fetch_interval=${var.roots_remote_fetch_interval}",
+        "-v=2",
+      ]),
+      "logConfiguration" : {
+        "logDriver" : "awslogs",
+        "options" : {
+          "awslogs-group" : "/ecs/${local.name}",
+          "mode" : "non-blocking",
+          "awslogs-create-group" : "true",
+          "max-buffer-size" : "25m",
+          "awslogs-region" : var.region,
+          "awslogs-stream-prefix" : "ecs"
+        },
       },
+      "dependsOn": [{
+        "containerName": "${local.name}-remote-root-server",
+        "condition": "START"
+      }]
     },
-  }])
+    {
+      "name" : "${local.name}-remote-root-server",
+      "image" : "${var.ecr_registry}/${var.ecr_repository_remote_root_server}",
+      "cpu" : 0,
+      "portMappings" : [{
+        "name" : "remote-root-server-8080-tcp",
+        "containerPort" : 8080,
+        "hostPort" : 8080,
+        "protocol" : "tcp"
+      }],
+      "essential" : true,
+      "command" : [
+        "--http_endpoint=:8080",
+        "--tesseract_url=http://localhost:${local.port}",
+        "--exit_on_success=true",
+        "--verify_interval=5s",
+        "--max_runtime=3m",
+        "--v=1"
+      ],
+      "logConfiguration" : {
+        "logDriver" : "awslogs",
+        "options" : {
+          "awslogs-group" : "/ecs/${local.name}-remote-root-server",
+          "mode" : "non-blocking",
+          "awslogs-create-group" : "true",
+          "max-buffer-size" : "25m",
+          "awslogs-region" : var.region,
+          "awslogs-stream-prefix" : "ecs"
+        },
+      },
+    }
+  ])
 
   runtime_platform {
     operating_system_family = "LINUX"
@@ -288,3 +325,5 @@ resource "aws_ecs_task_definition" "hammer" {
     aws_ecs_cluster.ecs_cluster,
   ]
 }
+
+

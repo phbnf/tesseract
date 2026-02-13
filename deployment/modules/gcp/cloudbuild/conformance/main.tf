@@ -24,6 +24,7 @@ locals {
   cloudbuild_service_account   = "cloudbuild-${var.env}-sa@${var.project_id}.iam.gserviceaccount.com"
   artifact_repo                = "${var.location}-docker.pkg.dev/${var.project_id}/${module.artifactregistry.docker.name}"
   conformance_gcp_docker_image = "${local.artifact_repo}/conformance-gcp"
+  remote_root_server_docker_image = "${local.artifact_repo}/remote-root-server"
   origin                       = "${var.env}-conformance.ct.transparency.dev" # Must match the origin in the deplyment/gcp/static-ct-ci/logs/ci/terragrunt.hcl file.
   safe_origin                 = replace("${local.origin}", "/[^-a-zA-Z0-9]/", "-")
 }
@@ -147,6 +148,19 @@ resource "google_cloudbuild_trigger" "build_trigger" {
       wait_for = ["docker_build_tesseract_gcp"]
     }
 
+    ## Build Remote Root Server Docker container image.
+    step {
+      id   = "docker_build_remote_root_server"
+      name = "gcr.io/cloud-builders/docker"
+      args = [
+        "build",
+        "-t", "${local.remote_root_server_docker_image}:$SHORT_SHA",
+        "-t", "${local.remote_root_server_docker_image}:latest",
+        "-f", "./internal/remote_root_server/Dockerfile",
+        "."
+      ]
+    }
+
     ## Push the conformance Docker container image to Artifact Registry.
     step {
       id   = "docker_push_conformance_gcp"
@@ -157,6 +171,18 @@ resource "google_cloudbuild_trigger" "build_trigger" {
         local.conformance_gcp_docker_image
       ]
       wait_for = ["docker_build_conformance_gcp"]
+    }
+
+    ## Push the remote root server Docker container image to Artifact Registry.
+    step {
+      id   = "docker_push_remote_root_server"
+      name = "gcr.io/cloud-builders/docker"
+      args = [
+        "push",
+        "--all-tags",
+        local.remote_root_server_docker_image
+      ]
+      wait_for = ["docker_build_remote_root_server"]
     }
 
     ## Apply the terragrunt config.
@@ -173,9 +199,9 @@ resource "google_cloudbuild_trigger" "build_trigger" {
         "GOOGLE_PROJECT=${var.project_id}",
         "TF_IN_AUTOMATION=1",
         "TF_INPUT=false",
-        "TF_VAR_project_id=${var.project_id}"
+        "TF_VAR_project_id=${var.project_id}",
       ]
-      wait_for = ["preclean_env", "create_test_keys", "docker_push_conformance_gcp"]
+      wait_for = ["preclean_env", "create_test_keys", "docker_push_conformance_gcp", "docker_push_remote_root_server"]
     }
 
     ## Print Terragrunt output to files.

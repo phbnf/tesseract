@@ -31,10 +31,39 @@ jobs:
           export CT_LOG_PUBLIC_KEY=$(openssl ec -pubin -inform PEM -in ${{ github.workspace }}/testlog/test-ecdsa-pub.pem -outform der | base64 -w 0)
           export UID
           export GID
+          export WORKSPACE="${{ github.workspace }}"
+          
+          # Ensure cleanup happens on exit
+          trap "docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml logs; docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml down" EXIT
+
+          # Start all services detached
+          # Tesseract, Remote Root Server, and Hammer
+          echo "Starting all services detached..."
+          ls -la ${{ github.workspace }}/testlog
+          
           docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml \
-            --env-file="${{ github.workspace }}/env" up \
-            --abort-on-container-exit \
-            --exit-code-from hammer
+            --env-file="${{ github.workspace }}/env" up -d
+          docker compose -f ./cmd/tesseract/posix/ci/docker-compose.yml logs
+
+          echo "Waiting for hammer to exit..."
+          HAMMER_EXIT_CODE=$(docker wait hammer)
+          echo "Hammer exited with $HAMMER_EXIT_CODE"
+          
+          if [ "$HAMMER_EXIT_CODE" != "0" ]; then
+          echo "FAILED: Hammer failed."
+            exit 1
+          fi
+          echo "Hammer ran successfully."
+
+          # Check Remote Root Server exit code
+          SERVER_EXIT_CODE=$(docker wait remote_root_server)
+          echo "Remote Root Server exited with $SERVER_EXIT_CODE"
+          
+          if [ "$SERVER_EXIT_CODE" != "0" ]; then
+             echo "FAILED: Remote Root Server failed (exit code $SERVER_EXIT_CODE)."
+             exit 1
+          fi
+          echo "Remote Root Server verification successful."
 
       - name: fsck the log
         shell: bash

@@ -1,0 +1,111 @@
+variable "project_id" {
+  description = "GCP project ID where the log is hosted"
+  type        = string
+}
+
+variable "base_name" {
+  description = "Base name to use when naming resources"
+  type        = string
+}
+
+variable "origin" {
+  description = "Log origin"
+  type        = string
+}
+
+variable "not_after_start" {
+  description = "Start of the range of acceptable NotAfter values, inclusive. Leaving this empty implies no lower bound to the range. RFC3339 UTC format, e.g: 2024-01-02T15:04:05Z."
+  default     = ""
+  type        = string
+}
+
+variable "not_after_limit" {
+  description = "Cut off point of notAfter dates - only notAfter dates strictly *before* notAfterLimit will be accepted. Leaving this empty means no upper bound on the accepted range. RFC3339 UTC format, e.g: 2024-01-02T15:04:05Z."
+  default     = ""
+  type        = string
+}
+
+variable "location" {
+  description = "Location in which to create resources"
+  type        = string
+}
+
+variable "env" {
+  description = "Name of the environment (prod, ci, etc)."
+  type        = string
+}
+
+variable "docker_env" {
+  description = "Unique identifier for the Docker env, e.g. dev or ci or prod"
+  type        = string
+}
+
+variable "server_docker_image" {
+  description = "The full image URL (path & tag) for the Docker image to deploy in Cloud Run"
+  type        = string
+}
+
+variable "remote_root_server_docker_image" {
+  description = "Docker image for the remote root server sidecar."
+  type        = string
+}
+
+variable "spanner_pu" {
+  description = "Amount of Spanner processing units"
+  type        = number
+  default     = 100
+}
+
+variable "batch_max_size" {
+  description = "Maximum number of entries to process in a single sequencing batch."
+  type        = number
+  default     = 1024
+}
+
+variable "batch_max_age" {
+  description = "Maximum age of entries in a single sequencing batch."
+  type        = string
+  default     = "500ms"
+}
+
+variable "ephemeral" {
+  description = "Set to true if this is a throwaway/temporary log instance. Will set attributes on created resources to allow them to be disabled/deleted more easily."
+  default     = false
+  type        = bool
+}
+
+variable "trace_fraction" {
+  description = "Fraction of open-telemetry span traces to sample."
+  default     = 0
+  type        = number
+}
+
+variable "log_public_key_secret_name" {
+  description = "Secret manager secret version resource for the log public key. Format: projects/{projectId}/secrets/{secretName}/versions/{secretVersion}."
+  type        = string
+}
+
+variable "log_private_key_secret_name" {
+  description = "Secret manager secret version resource for the log private key. Format: projects/{projectId}/secrets/{secretName}/versions/{secretVersion}."
+  type        = string
+}
+
+variable "roots_remote_fetch_url" {
+  description = "URL to fetch trusted roots from."
+  type        = string
+  default     = "https://ccadb.my.salesforce-sites.com/ccadb/RootCACertificatesIncludedByRSReportCSV"
+}
+
+variable "roots_remote_fetch_interval" {
+  description = "Interval between two fetches from roots_fetch_url, e.g. \"1h\"."
+  type        = string
+  default     = "0s"
+}
+
+variable "roots_reject_fingerprints" {
+  description = "List of hex-encoded SHA-256 fingerprints of root certificates to reject."
+  type        = list(string)
+  default     = []
+}
+
+

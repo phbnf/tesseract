@@ -81,6 +81,42 @@ resource "google_cloud_run_v2_service" "default" {
         }
       }
     }
+
+    dynamic "containers" {
+      for_each = var.additional_containers
+      content {
+        name  = containers.value.name
+        image = containers.value.image
+        args  = containers.value.args
+        dynamic "ports" {
+          for_each = containers.value.ports != null ? containers.value.ports : []
+          content {
+            container_port = ports.value.container_port
+            name           = ports.value.name
+          }
+        }
+        dynamic "resources" {
+          for_each = containers.value.resources != null ? [containers.value.resources] : []
+          content {
+            limits = resources.value.limits
+          }
+        }
+        dynamic "env" {
+          for_each = containers.value.env != null ? containers.value.env : []
+          content {
+            name  = env.value.name
+            value = env.value.value
+          }
+        }
+        dynamic "volume_mounts" {
+          for_each = containers.value.volume_mounts != null ? containers.value.volume_mounts : []
+          content {
+            name       = volume_mounts.value.name
+            mount_path = volume_mounts.value.mount_path
+          }
+        }
+      }
+    }
   }
 
   deletion_protection = false

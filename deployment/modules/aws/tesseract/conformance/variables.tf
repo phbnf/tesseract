@@ -33,6 +33,12 @@ variable "ecr_repository_hammer" {
   type        = string
 }
 
+variable "ecr_repository_remote_root_server" {
+  description = "Container repository for the remote root server binary, with the tag."
+  type        = string
+  default     = "static-ct-ci/remote-root-server:latest"
+}
+
 variable "ecs_execution_role" {
   description = "Role used to run the ECS task."
   type        = string
