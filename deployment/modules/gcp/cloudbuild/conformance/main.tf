@@ -20,6 +20,8 @@ module "artifactregistry" {
 
 # Cloud Build
 
+locals {
+  cloudbuild_service_account   = "cloudbuild-${var.env}-sa@${var.project_id}.iam.gserviceaccount.com"
   artifact_repo                = "${var.location}-docker.pkg.dev/${var.project_id}/${module.artifactregistry.docker.name}"
   conformance_gcp_docker_image = "${local.artifact_repo}/conformance-gcp"
   remote_root_server_docker_image = "${local.artifact_repo}/remote-root-server"

@@ -507,7 +507,7 @@ func TestNewChainValidatorRootsFiltering(t *testing.T) {
 			}
 			if len(gotBackupRootsByFP) > 0 {
 				extra := slices.Collect(maps.Keys(gotBackupRootsByFP))
-				t.Errorf("Backed up roots contains unexpected roots: %v", strings.Join(extra, ", "))
+				t.Errorf("Backed up roots contains %d unexpected roots: %v", len(gotBackupRootsByFP), strings.Join(extra, ", "))
 			}
 		})
 	}

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -142,7 +143,11 @@ func verifyLoop(fingerprints []string, rejected map[string]struct{}) {
 
 func verifyRoots(fingerprints []string, rejected map[string]struct{}) error {
 	// 1. Check get-roots
-	resp, err := http.Get(*tesseractURL + "/ct/v1/get-roots")
+	url, err := url.JoinPath(*tesseractURL, "/ct/v1/get-roots")
+	if err != nil {
+		return fmt.Errorf("can't build get-root url: %v", err)
+	}
+	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to call get-roots: %v", err)
 	}
