@@ -212,6 +212,7 @@ resource "aws_ecs_task_definition" "conformance" {
         "--http_endpoint=:8080",
         "--tesseract_url=http://localhost:${local.port}",
         "--verify_interval=5s"
+        "--log-level=DEBUG"
       ],
       "logConfiguration" : {
         "logDriver" : "awslogs",

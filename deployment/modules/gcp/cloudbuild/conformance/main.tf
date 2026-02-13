@@ -198,9 +198,6 @@ resource "google_cloudbuild_trigger" "build_trigger" {
         "TF_IN_AUTOMATION=1",
         "TF_INPUT=false",
         "TF_VAR_project_id=${var.project_id}",
-        "TF_VAR_roots_remote_fetch_url=http://localhost:8080/roots.csv",
-        "TF_VAR_roots_reject_fingerprints=[\"5F21D7B05373D015FA05C4E80B4BFDBB29F8E8655F5B29BB2AAF7C0910530637\"",
-        "TF_VAR_remote_root_server_docker_image=${local.remote_root_server_docker_image}:latest"
       ]
       wait_for = ["preclean_env", "create_test_keys", "docker_push_conformance_gcp", "docker_push_remote_root_server"]
     }

@@ -17,8 +17,8 @@ services:
       - "--checkpoint_interval=2s"
       - "--enable_publication_awaiter=false"
       - "--roots_remote_fetch_url=http://remote_root_server:8080/roots.csv"
-      - "--roots_remote_fetch_interval=${ROOTS_REMOTE_FETCH_INTERVAL}"
-      - "--roots_reject_fingerprints=${ROOTS_REJECT_FINGERPRINTS}"
+      - "--roots_remote_fetch_interval=10s"
+      - "--roots_reject_fingerprints=e4286b40367091e7151f06d2164f9dea3472983e934a2b860bbc4909e070cd8a"  # internal/testdata/test_root_ca_cert.pem
     volumes:
       - ../../../../internal/hammer/testdata:/testdata:ro
       - type: bind
@@ -42,7 +42,7 @@ services:
       - "--http_endpoint=:8080"
       - "--tesseract_url=http://tesseract:6962"
       - "--roots_backup_dir=/testlog/roots"
-      - "--roots_reject_fingerprints=${ROOTS_REJECT_FINGERPRINTS}"
+      - "--roots_reject_fingerprints=e4286b40367091e7151f06d2164f9dea3472983e934a2b860bbc4909e070cd8a"  # internal/testdata/test_root_ca_cert.pem
       - "--exit_on_success=true"
       - "--log-level=DEBUG"
     volumes:
