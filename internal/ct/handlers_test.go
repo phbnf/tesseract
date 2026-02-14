@@ -1068,3 +1068,33 @@ func TestReceivedAtOrigin(t *testing.T) {
 		})
 	}
 }
+
+func TestAddChainBodyLimit(t *testing.T) {
+	log, _ := setupTestLog(t)
+	// Create a handler with the default options
+	server := setupTestServer(t, log, path.Join(prefix, rfc6962.AddChainPath), hOpts())
+	defer server.Close()
+
+	// 5MB of data
+	largeString := strings.Repeat("a", 5*1024*1024)
+	reqBody := rfc6962.AddChainRequest{
+		Chain: [][]byte{[]byte(largeString)},
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("Failed to marshal request: %v", err)
+	}
+
+	resp, err := http.Post(server.URL+rfc6962.AddChainPath, "application/json", bytes.NewReader(jsonData))
+	if err != nil {
+		t.Fatalf("http.Post failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusRequestEntityTooLarge {
+		t.Logf("Got expected 413 status code")
+	} else {
+		t.Errorf("Got status code: %d, want %d", resp.StatusCode, http.StatusRequestEntityTooLarge)
+	}
+}
