@@ -610,7 +610,7 @@ func TestAddChain(t *testing.T) {
 				}
 
 				// TODO(phbnf): check inclusion proof
-				// TODO(phbnf): add a test with a backend write failure
+				// TODO(phboneff): add a test with a backend write failure
 			}
 		})
 	}
@@ -1066,5 +1066,26 @@ func TestReceivedAtOrigin(t *testing.T) {
 				t.Errorf("receivedAtOrigin() succeeded, but want error: %v", gotErr)
 			}
 		})
+	}
+}
+
+func TestAddChainBodyLimit(t *testing.T) {
+	log, _ := setupTestLog(t)
+	// Create a large body (e.g. 5MB)
+	largeBody := strings.Repeat("a", 5*1024*1024)
+
+	server := setupTestServer(t, log, path.Join(prefix, rfc6962.AddChainPath), hOpts())
+	defer server.Close()
+
+	resp, err := http.Post(server.URL+rfc6962.AddChainPath, "application/json", strings.NewReader(largeBody))
+	if err != nil {
+		t.Fatalf("http.Post failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Currently, it reads the whole body, fails JSON parsing, and returns 400 Bad Request.
+	// We want it to fail with 413 Payload Too Large.
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Errorf("Expected status 413, got %d", resp.StatusCode)
 	}
 }
