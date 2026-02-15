@@ -758,3 +758,29 @@ func TestPreIssuedCert(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkValidateChainWithRestrictions(b *testing.B) {
+	rawChain := pemsToDERChain(b, []string{testdata.PreCertFromIntermediate, testdata.IntermediateFromRoot, testdata.CACertPEM})
+	chain, err := parseChain(rawChain)
+	if err != nil {
+		b.Fatalf("parseChain: %v", err)
+	}
+	r := x509util.NewPEMCertPool()
+	r.AddCerts([]*x509.Certificate{chain[2]})
+
+	// Configure restrictions to trigger the optimized path
+	kus := []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
+	// Random OIDs to reject (that likely aren't in the cert, so we loop through all extensions)
+	oids := []asn1.ObjectIdentifier{
+		{1, 2, 840, 113549, 1, 1, 1},
+		{2, 16, 840, 1, 101, 3, 4, 2, 1},
+		{1, 2, 840, 10045, 4, 3, 2},
+	}
+
+	cv := NewChainValidator(r, false, false, nil, nil, kus, oids, false)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = cv.Validate(chain, true)
+	}
+}
