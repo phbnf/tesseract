@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -1066,5 +1067,46 @@ func TestReceivedAtOrigin(t *testing.T) {
 				t.Errorf("receivedAtOrigin() succeeded, but want error: %v", gotErr)
 			}
 		})
+	}
+}
+
+// BenchmarkValidateChainWithRestrictions to see how expensive cert validating is with restrictions.
+func BenchmarkValidateChainWithRestrictions(b *testing.B) {
+	rawChain := pemsToDERChain(b, []string{testdata.PreCertFromIntermediate, testdata.IntermediateFromRoot, testdata.CACertPEM})
+	chain, err := parseChain(rawChain)
+	if err != nil {
+		b.Fatalf("parseChain: %v", err)
+	}
+	r := x509util.NewPEMCertPool()
+	r.AddCerts([]*x509.Certificate{chain[2]})
+
+	ekus := []x509.ExtKeyUsage{
+		x509.ExtKeyUsageServerAuth,
+		x509.ExtKeyUsageClientAuth,
+		x509.ExtKeyUsageCodeSigning,
+		x509.ExtKeyUsageEmailProtection,
+	}
+	// Some random OIDs to reject (that are not in the certs)
+	oids := []asn1.ObjectIdentifier{
+		{1, 2, 3, 4},
+		{1, 2, 3, 5},
+		{1, 2, 3, 6},
+		{1, 2, 3, 7},
+		{1, 2, 3, 8},
+		{1, 2, 3, 9},
+		{1, 2, 3, 10},
+		{1, 2, 3, 11},
+		{1, 2, 3, 12},
+		{1, 2, 3, 13},
+	}
+
+	cv := NewChainValidator(r, false, false, nil, nil, ekus, oids, false)
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, err := cv.Validate(chain, true)
+		if err != nil {
+			b.Fatalf("Validate: %v", err)
+		}
 	}
 }
