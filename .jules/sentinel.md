@@ -1,0 +1,4 @@
+## 2026-02-17 - Unbounded Request Body in HTTP Handlers
+**Vulnerability:** The `add-chain` and `add-pre-chain` endpoints read the entire request body into memory using `io.ReadAll` without any size limit. This allows attackers to cause a Denial of Service (DoS) by sending excessively large payloads, leading to memory exhaustion (OOM).
+**Learning:** Even when using higher-level frameworks or helper functions like `parseBodyAsJSONChain`, always verify if input size limits are enforced. Go's `http.Server` does not limit request body size by default unless `MaxBytesReader` is used.
+**Prevention:** Always wrap `r.Body` with `http.MaxBytesReader` in handlers that consume the request body, especially for public-facing endpoints. Configure a reasonable maximum size (e.g., 4MB for certificate chains) to reject malicious payloads early.

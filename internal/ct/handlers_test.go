@@ -1068,3 +1068,26 @@ func TestReceivedAtOrigin(t *testing.T) {
 		})
 	}
 }
+
+func TestAddChainLargeBody(t *testing.T) {
+	log, _ := setupTestLog(t)
+
+	t.Run("LargeBodyWithLimit", func(t *testing.T) {
+		opts := hOpts()
+		opts.MaxBodySize = 4 * 1024 * 1024 // 4MB
+
+		server := setupTestServer(t, log, path.Join(prefix, rfc6962.AddChainPath), opts)
+		defer server.Close()
+
+		// 5MB body
+		largeBody := `{"chain": ["` + strings.Repeat("a", 5*1024*1024) + `"]}`
+		resp, err := http.Post(server.URL+rfc6962.AddChainPath, "application/json", strings.NewReader(largeBody))
+		if err != nil {
+			t.Fatalf("Failed to post: %v", err)
+		}
+
+		if resp.StatusCode != http.StatusRequestEntityTooLarge {
+			t.Errorf("Got status %d, expected 413 Request Entity Too Large", resp.StatusCode)
+		}
+	})
+}
