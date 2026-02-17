@@ -234,6 +234,7 @@ func NewLogHandler(ctx context.Context, origin string, signer crypto.Signer, cfg
 		MaskInternalErrors: maskInternalErrors,
 		TimeSource:         sysTimeSource,
 		PathPrefix:         pathPrefix,
+		MaxBodySize:        4 * 1024 * 1024, // 4MB
 	}
 	if opts.NotBeforeRL != nil {
 		ctOpts.RateLimits.NotBefore(opts.NotBeforeRL.AgeThreshold, opts.NotBeforeRL.RateLimit)
