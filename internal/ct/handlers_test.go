@@ -1068,3 +1068,26 @@ func TestReceivedAtOrigin(t *testing.T) {
 		})
 	}
 }
+
+func TestMaxBodySize(t *testing.T) {
+	log, _ := setupTestLog(t)
+	hhOpts := hOpts()
+	hhOpts.MaxBodySize = 10 // Very small limit
+	handlers := NewPathHandlers(t.Context(), hhOpts, log)
+
+	// Use add-chain endpoint as it reads the body
+	handler := handlers[path.Join(prefix, rfc6962.AddChainPath)]
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	// Body larger than 10 bytes
+	// {"chain":[]} is 11 bytes
+	body := strings.NewReader(`{"chain":[]}`)
+	resp, err := http.Post(server.URL, "application/json", body)
+	if err != nil {
+		t.Fatalf("http.Post: %v", err)
+	}
+	if got, want := resp.StatusCode, http.StatusRequestEntityTooLarge; got != want {
+		t.Errorf("StatusCode: got %d, want %d", got, want)
+	}
+}
