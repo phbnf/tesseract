@@ -439,7 +439,7 @@ func TestNewChainValidatorRootsFiltering(t *testing.T) {
 					V: []byte(testdata.FakeRootCACertPEM),
 				},
 			},
-			wantNRoots:  1,                         // Only CACertPEM from file
+			wantNRoots:  1,                           // Only CACertPEM from file
 			wantRootsFP: []string{caRootFingerprint}, // CACertPEM fingerprint
 		},
 	} {
