@@ -75,6 +75,7 @@ func hOpts() *HandlerOptions {
 		MaskInternalErrors: false,
 		TimeSource:         timeSource,
 		PathPrefix:         prefix,
+		MaxBodySize:        DefaultMaxBodySize,
 	}
 
 }
