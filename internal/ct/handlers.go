@@ -323,11 +323,19 @@ type HandlerOptions struct {
 	PathPrefix string
 	// RateLimits describes optional rate limits to enforce.
 	RateLimits RateLimits
+	// MaxBodySize is the maximum size of the request body in bytes.
+	MaxBodySize int64
 }
+
+const DefaultMaxBodySize = 4 * 1024 * 1024
 
 func NewPathHandlers(ctx context.Context, opts *HandlerOptions, log *log) pathHandlers {
 	once.Do(func() { setupMetrics() })
 	knownLogs.Record(ctx, 1, metric.WithAttributes(originKey.String(log.origin)))
+
+	if opts.MaxBodySize == 0 {
+		opts.MaxBodySize = DefaultMaxBodySize
+	}
 
 	prefix := strings.TrimRight(opts.PathPrefix, "/")
 	if prefix != "" && !strings.HasPrefix(prefix, "/") {
@@ -355,7 +363,8 @@ func (opts *HandlerOptions) sendHTTPError(w http.ResponseWriter, statusCode int,
 }
 
 // parseBodyAsJSONChain tries to extract cert-chain out of request.
-func parseBodyAsJSONChain(r *http.Request) (rfc6962.AddChainRequest, error) {
+func parseBodyAsJSONChain(w http.ResponseWriter, r *http.Request, maxBodySize int64) (rfc6962.AddChainRequest, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		klog.V(1).Infof("Failed to read request body: %v", err)
@@ -391,8 +400,12 @@ func addChainInternal(ctx context.Context, opts *HandlerOptions, log *log, w htt
 	}
 
 	// Check the contents of the request and convert to slice of certificates.
-	addChainReq, err := parseBodyAsJSONChain(r)
+	addChainReq, err := parseBodyAsJSONChain(w, r, opts.MaxBodySize)
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return http.StatusRequestEntityTooLarge, nil, fmt.Errorf("%s: request body too large: %w", log.origin, err)
+		}
 		return http.StatusBadRequest, nil, fmt.Errorf("%s: failed to parse add-chain body: %s", log.origin, err)
 	}
 	// Log the DERs now because they might not parse as valid X.509.
