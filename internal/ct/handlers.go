@@ -51,6 +51,8 @@ const (
 	contentTypeJSON string = "application/json"
 	// The name of the JSON response map key in get-roots responses
 	jsonMapKeyCertificates string = "certificates"
+	// DefaultMaxBodySize limits the maximum request body size (4MB)
+	DefaultMaxBodySize int64 = 4 * 1024 * 1024
 )
 
 // entrypointName identifies a CT entrypoint as defined in section 4 of RFC 6962.
@@ -323,6 +325,8 @@ type HandlerOptions struct {
 	PathPrefix string
 	// RateLimits describes optional rate limits to enforce.
 	RateLimits RateLimits
+	// MaxBodySize limits the maximum request body size.
+	MaxBodySize int64
 }
 
 func NewPathHandlers(ctx context.Context, opts *HandlerOptions, log *log) pathHandlers {
@@ -332,6 +336,10 @@ func NewPathHandlers(ctx context.Context, opts *HandlerOptions, log *log) pathHa
 	prefix := strings.TrimRight(opts.PathPrefix, "/")
 	if prefix != "" && !strings.HasPrefix(prefix, "/") {
 		prefix = "/" + prefix
+	}
+
+	if opts.MaxBodySize == 0 {
+		opts.MaxBodySize = DefaultMaxBodySize
 	}
 
 	// Bind each endpoint to an appHandler instance.
@@ -355,8 +363,8 @@ func (opts *HandlerOptions) sendHTTPError(w http.ResponseWriter, statusCode int,
 }
 
 // parseBodyAsJSONChain tries to extract cert-chain out of request.
-func parseBodyAsJSONChain(r *http.Request) (rfc6962.AddChainRequest, error) {
-	body, err := io.ReadAll(r.Body)
+func parseBodyAsJSONChain(w http.ResponseWriter, r *http.Request, maxBodySize int64) (rfc6962.AddChainRequest, error) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodySize))
 	if err != nil {
 		klog.V(1).Infof("Failed to read request body: %v", err)
 		return rfc6962.AddChainRequest{}, err
@@ -391,8 +399,12 @@ func addChainInternal(ctx context.Context, opts *HandlerOptions, log *log, w htt
 	}
 
 	// Check the contents of the request and convert to slice of certificates.
-	addChainReq, err := parseBodyAsJSONChain(r)
+	addChainReq, err := parseBodyAsJSONChain(w, r, opts.MaxBodySize)
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return http.StatusRequestEntityTooLarge, nil, fmt.Errorf("%s: request body too large: %s", log.origin, err)
+		}
 		return http.StatusBadRequest, nil, fmt.Errorf("%s: failed to parse add-chain body: %s", log.origin, err)
 	}
 	// Log the DERs now because they might not parse as valid X.509.
