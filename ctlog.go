@@ -231,6 +231,7 @@ func NewLogHandler(ctx context.Context, origin string, signer crypto.Signer, cfg
 	ctOpts := &ct.HandlerOptions{
 		Deadline:           httpDeadline,
 		RequestLog:         &ct.DefaultRequestLog{},
+		MaxBodySize:        ct.DefaultMaxBodySize,
 		MaskInternalErrors: maskInternalErrors,
 		TimeSource:         sysTimeSource,
 		PathPrefix:         pathPrefix,
