@@ -1,0 +1,4 @@
+## 2026-03-07 - Remove `net/http/pprof` import
+**Vulnerability:** The `cmd/tesseract/posix/main.go` file imported `_ "net/http/pprof"`, which automatically registers profiling endpoints (`/debug/pprof/*`) to the global `http.DefaultServeMux`. Since the application starts an HTTP server using `http.Handle("/", ...)` which registers on the default multiplexer, these sensitive profiling endpoints became publicly accessible. This leads to a CWE-200 Information Exposure vulnerability.
+**Learning:** In Go, blank importing `net/http/pprof` registers profiling endpoints on the default HTTP multiplexer. If an application later exposes the default multiplexer, these endpoints are exposed.
+**Prevention:** Do not import `_ "net/http/pprof"` in production code unless it's intentionally bound to an internal-only port or explicitly protected.
