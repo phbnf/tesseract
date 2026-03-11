@@ -22,6 +22,7 @@ import (
 	"io"
 	"path"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -101,7 +102,8 @@ func (s *IssuersStorage) objNameToKey(objName string) []byte {
 
 // LoadAll loads all the values in the bucket under the prefix.
 func (s *IssuersStorage) LoadAll(ctx context.Context) ([]storage.KV, error) {
-	errs := []error(nil)
+	eg, ctx := errgroup.WithContext(ctx)
+	var mu sync.Mutex
 	kvs := []storage.KV{}
 
 	paginator := s3.NewListObjectsV2Paginator(s.s3Client, &s3.ListObjectsV2Input{
@@ -113,34 +115,39 @@ func (s *IssuersStorage) LoadAll(ctx context.Context) ([]storage.KV, error) {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			// If listing fails, stop iterating
-			errs = append(errs, fmt.Errorf("failed to list objects in bucket %q prefix %q: %w", s.bucket, s.prefix, err))
-			break
+			return nil, fmt.Errorf("failed to list objects in bucket %q prefix %q: %w", s.bucket, s.prefix, err)
 		}
 
 		for _, obj := range page.Contents {
-			resp, err := s.s3Client.GetObject(ctx, &s3.GetObjectInput{
-				Bucket: aws.String(s.bucket),
-				Key:    obj.Key,
+			eg.Go(func() error {
+				resp, err := s.s3Client.GetObject(ctx, &s3.GetObjectInput{
+					Bucket: aws.String(s.bucket),
+					Key:    obj.Key,
+				})
+				if err != nil {
+					return fmt.Errorf("failed to get object %q: %w", *obj.Key, err)
+				}
+
+				data, err := io.ReadAll(resp.Body)
+				if errC := resp.Body.Close(); errC != nil {
+					klog.Errorf("resp.Body.Close(): %v", errC)
+				}
+				if err != nil {
+					return fmt.Errorf("failed to read object body %q: %w", *obj.Key, err)
+				}
+
+				mu.Lock()
+				kvs = append(kvs, storage.KV{K: s.objNameToKey(*obj.Key), V: data})
+				mu.Unlock()
+				return nil
 			})
-			if err != nil {
-				errs = append(errs, fmt.Errorf("failed to get object %q: %w", *obj.Key, err))
-				continue
-			}
-
-			data, err := io.ReadAll(resp.Body)
-			if errC := resp.Body.Close(); errC != nil {
-				klog.Errorf("resp.Body.Close(): %v", errC)
-			}
-			if err != nil {
-				errs = append(errs, fmt.Errorf("failed to read object body %q: %w", *obj.Key, err))
-				continue
-			}
-
-			kvs = append(kvs, storage.KV{K: s.objNameToKey(*obj.Key), V: data})
 		}
 	}
 
-	return kvs, errors.Join(errs...)
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+	return kvs, nil
 }
 
 // AddIfNotExist stores values under their Key if there isn't an object under Key already.
