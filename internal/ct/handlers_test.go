@@ -1068,3 +1068,26 @@ func TestReceivedAtOrigin(t *testing.T) {
 		})
 	}
 }
+
+func TestMaxBodySize(t *testing.T) {
+	log, _ := setupTestLog(t)
+	opts := hOpts()
+	// Set a very small limit for testing (10 bytes)
+	opts.MaxBodySize = 10
+
+	server := setupTestServer(t, log, path.Join(prefix, rfc6962.AddChainPath), opts)
+	defer server.Close()
+
+	// Create a body larger than the limit (20 bytes)
+	largeBody := bytes.Repeat([]byte("a"), 20)
+
+	resp, err := http.Post(server.URL+rfc6962.AddChainPath, "application/json", bytes.NewReader(largeBody))
+	if err != nil {
+		t.Fatalf("http.Post failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Errorf("Status code: %d, want %d", resp.StatusCode, http.StatusRequestEntityTooLarge)
+	}
+}

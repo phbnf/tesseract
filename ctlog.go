@@ -213,6 +213,7 @@ type NotBeforeRL struct {
 type LogHandlerOpts struct {
 	NotBeforeRL *NotBeforeRL
 	DedupRL     float64
+	MaxBodySize int64
 }
 
 // NewLogHandler creates a Tessera based CT log plugged into HTTP handlers.
@@ -234,12 +235,18 @@ func NewLogHandler(ctx context.Context, origin string, signer crypto.Signer, cfg
 		return nil, fmt.Errorf("newLog(): %v", err)
 	}
 
+	maxBodySize := opts.MaxBodySize
+	if maxBodySize == 0 {
+		maxBodySize = 4 * 1024 * 1024
+	}
+
 	ctOpts := &ct.HandlerOptions{
 		Deadline:           httpDeadline,
 		RequestLog:         &ct.DefaultRequestLog{},
 		MaskInternalErrors: maskInternalErrors,
 		TimeSource:         sysTimeSource,
 		PathPrefix:         pathPrefix,
+		MaxBodySize:        maxBodySize,
 	}
 	if opts.NotBeforeRL != nil {
 		ctOpts.RateLimits.NotBefore(opts.NotBeforeRL.AgeThreshold, opts.NotBeforeRL.RateLimit)
