@@ -17,12 +17,12 @@ package gcp
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 
 	gcs "cloud.google.com/go/storage"
 	"github.com/google/go-cmp/cmp"
@@ -85,7 +85,8 @@ func (s *IssuersStorage) objNameToKey(objName string) []byte {
 
 // LoadAll loads all the values in the bucket under the prefix.
 func (s *IssuersStorage) LoadAll(ctx context.Context) ([]storage.KV, error) {
-	errs := []error(nil)
+	eg := errgroup.Group{}
+	var mu sync.Mutex
 	kvs := []storage.KV{}
 
 	it := s.bucket.Objects(ctx, &gcs.Query{Prefix: s.prefix})
@@ -98,25 +99,31 @@ func (s *IssuersStorage) LoadAll(ctx context.Context) ([]storage.KV, error) {
 			return nil, fmt.Errorf("failed to list objects in bucket %q under prefix %q: %v", s.bucket.BucketName(), s.prefix, err)
 		}
 
-		r, err := s.bucket.Object(attr.Name).NewReader(ctx)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to get object %q: %v", attr.Name, err))
-			continue
-		}
+		eg.Go(func() error {
+			r, err := s.bucket.Object(attr.Name).NewReader(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get object %q: %v", attr.Name, err)
+			}
 
-		root, err := io.ReadAll(r)
-		if errC := r.Close(); errC != nil {
-			klog.Errorf("r.Close(): %v", errC)
-		}
-		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to read object %q: %v", attr.Name, err))
-			continue
-		}
+			root, err := io.ReadAll(r)
+			if errC := r.Close(); errC != nil {
+				klog.Errorf("r.Close(): %v", errC)
+			}
+			if err != nil {
+				return fmt.Errorf("failed to read object %q: %v", attr.Name, err)
+			}
 
-		kvs = append(kvs, storage.KV{K: s.objNameToKey(attr.Name), V: root})
+			mu.Lock()
+			kvs = append(kvs, storage.KV{K: s.objNameToKey(attr.Name), V: root})
+			mu.Unlock()
+			return nil
+		})
 	}
 
-	return kvs, errors.Join(errs...)
+	if eg.Wait() != nil {
+		return nil, eg.Wait()
+	}
+	return kvs, nil
 }
 
 // AddIfNotExist stores values under their Key if there isn't an object under Key already.
