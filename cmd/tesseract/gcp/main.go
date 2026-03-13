@@ -114,6 +114,7 @@ var (
 	slogLevel                  = flag.Int("slog_level", 0, "The cut-off threshold for structured logging. Default is INFO. See https://pkg.go.dev/log/slog#Level.")
 	slogToCloudAPI             = flag.Bool("slog_to_cloud_api", true, "Export logs directly to Cloud Logging API. Required --otel_project_id to be set.")
 	slogToStdOut               = flag.Bool("slog_to_stdout", false, "Export logs to stdout.")
+	slogAddSource              = flag.Bool("slog_add_source", false, "Add source (file/line) information to logs.")
 )
 
 // nolint:staticcheck
@@ -127,6 +128,7 @@ func main() {
 		loggingHandlers = append(loggingHandlers, slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 			ReplaceAttr: logger.GCPReplaceAttr,
 			Level:       slog.Level(*slogLevel),
+			AddSource:   *slogAddSource,
 		}))
 	}
 	if *slogToCloudAPI {
@@ -143,7 +145,7 @@ func main() {
 				klog.Errorf("Failed to close Cloud Logging client: %v", err)
 			}
 		}()
-		loggingHandlers = append(loggingHandlers, logger.NewExporter(loggingClient.Logger("tesseract"), slog.Level(*slogLevel)))
+		loggingHandlers = append(loggingHandlers, logger.NewExporter(loggingClient.Logger("tesseract"), slog.Level(*slogLevel), *slogAddSource))
 	}
 
 	if len(loggingHandlers) > 0 {

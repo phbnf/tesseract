@@ -20,8 +20,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime"
 
 	"cloud.google.com/go/logging"
+	"cloud.google.com/go/logging/apiv2/loggingpb"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -129,14 +131,15 @@ func (h *Enricher) WithGroup(g string) slog.Handler {
 
 // Exporter logs record to GCP Cloud Logging API.
 type Exporter struct {
-	logger *logging.Logger
-	level  slog.Level
-	goas   []groupOrAttrs
+	logger    *logging.Logger
+	level     slog.Level
+	goas      []groupOrAttrs
+	addSource bool
 }
 
 // NewExporter creates an slog.Handler that directly logs to GCP Cloud logging.
-func NewExporter(logger *logging.Logger, level slog.Level) *Exporter {
-	return &Exporter{logger: logger, level: level}
+func NewExporter(logger *logging.Logger, level slog.Level, addSource bool) *Exporter {
+	return &Exporter{logger: logger, level: level, addSource: addSource}
 }
 
 // Enabled reports whether the handler handles records at the given level.
@@ -188,6 +191,16 @@ func (h *Exporter) Handle(ctx context.Context, r slog.Record) error {
 		}
 		return true
 	})
+
+	if h.addSource && r.PC != 0 {
+		fs := runtime.CallersFrames([]uintptr{r.PC})
+		f, _ := fs.Next()
+		entry.SourceLocation = &loggingpb.LogEntrySourceLocation{
+			File:     f.File,
+			Line:     int64(f.Line),
+			Function: f.Function,
+		}
+	}
 
 	h.logger.Log(entry)
 	return nil
