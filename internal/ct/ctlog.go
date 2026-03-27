@@ -48,6 +48,7 @@ type Storage interface {
 type ChainValidator interface {
 	Validate(chain []*x509.Certificate, expectingPrecert bool) ([]*x509.Certificate, error)
 	Roots() []*x509.Certificate
+	RootsBytes() [][]byte
 }
 
 // isValidOrigin returns nil if the origin complies with https://c2sp.org/static-ct-api.
