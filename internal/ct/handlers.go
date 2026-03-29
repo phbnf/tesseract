@@ -425,8 +425,14 @@ func addChainInternal(ctx context.Context, opts *HandlerOptions, log *log, w htt
 	}
 
 	// Check the contents of the request and convert to slice of certificates.
+	// Limit request body size to 4MB to prevent DoS.
+	r.Body = http.MaxBytesReader(w, r.Body, 4*1024*1024)
 	addChainReq, err := parseBodyAsJSONChain(r)
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return http.StatusRequestEntityTooLarge, nil, fmt.Errorf("request body too large: %w", err)
+		}
 		return http.StatusBadRequest, nil, fmt.Errorf("%s: failed to parse add-chain body: %s", log.origin, err)
 	}
 	// Log the DERs now because they might not parse as valid X.509.
