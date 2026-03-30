@@ -1,0 +1,4 @@
+## 2025-04-18 - Fix exposed pprof and expvar endpoints (CWE-200)
+**Vulnerability:** Blank imports (`_ "net/http/pprof"` and `_ "expvar"`) in `cmd/tesseract/posix/main.go` implicitly registered profiling and metric endpoints on the global `http.DefaultServeMux`, inadvertently exposing them when serving the public-facing API.
+**Learning:** Even if a custom ServeMux is not explicitly exposing debug paths, importing packages like `net/http/pprof` or `expvar` automatically registers their handlers to the default mux. If the server is bound without explicitly avoiding `DefaultServeMux` or if there's confusion about which mux is used, this creates a CWE-200 (Information Exposure) vulnerability.
+**Prevention:** Avoid blank imports of `net/http/pprof` and `expvar` in production binaries, especially when building internet-facing services. Alternatively, register these handlers to an internal, authenticated, or port-isolated ServeMux.
