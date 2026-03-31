@@ -24,7 +24,6 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -43,8 +42,6 @@ import (
 	"github.com/transparency-dev/tesseract/storage/posix"
 	"golang.org/x/mod/sumdb/note"
 	"k8s.io/klog/v2"
-
-	_ "expvar" // Registers /debug/vars, with BadgerDB metrics.
 )
 
 func init() {
