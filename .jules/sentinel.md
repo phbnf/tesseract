@@ -1,0 +1,4 @@
+## 2024-05-31 - [Remove implicit pprof endpoints from posix main entrypoint]
+**Vulnerability:** The `cmd/tesseract/posix/main.go` file imported `_ "net/http/pprof"`. This implicitly registers profiling endpoints (e.g., `/debug/pprof/`) on `http.DefaultServeMux`. Since `http.Server` implementations or external servers might unintentionally use or expose the default serve mux (CWE-200), these endpoints could leak sensitive performance and application information to unauthorized actors.
+**Learning:** We must not import `_ "net/http/pprof"` blindly in production entrypoints or servers handling public traffic, as the side effect registers routes on the global router that are often exposed without authentication.
+**Prevention:** Avoid `_ "net/http/pprof"`. If profiling is needed, register pprof handlers explicitly on an internal, authenticated, or port-separated `http.ServeMux` instead of the global default.
