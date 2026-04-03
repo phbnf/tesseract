@@ -1,0 +1,5 @@
+## 2024-05-24 - Do not expose profiling endpoints automatically
+
+**Vulnerability:** Information Exposure (CWE-200) / Profiling Endpoint Exposure via `net/http/pprof` and `expvar`.
+**Learning:** Importing `net/http/pprof` and `expvar` automatically registers handlers on `http.DefaultServeMux`. If an HTTP server uses `http.DefaultServeMux` (or if it gets bound publicly in any way), profiling endpoints (like `/debug/pprof/*` and `/debug/vars`) become accessible to anyone, leaking sensitive application state, internal metrics, and potentially allowing denial-of-service or further reconnaissance.
+**Prevention:** In public-facing applications or entry points (like `cmd/tesseract/*/main.go`), do not import `_ "net/http/pprof"` or `_ "expvar"`. If profiling is required, it must be bound to a separate, internal-only interface or strictly authenticated and authorized on a specific multiplexer instead of the default global mux.
