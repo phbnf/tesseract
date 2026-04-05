@@ -329,6 +329,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject SubjectKeyIdentifier extension
 				v.rejectExtIds = []asn1.ObjectIdentifier{[]int{99, 99, 99, 99}}
+				v.rejectExtIdsMap = nil
 			},
 			wantPathLen: 3,
 		},
@@ -338,6 +339,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject SubjectKeyIdentifier extension
 				v.rejectExtIds = []asn1.ObjectIdentifier{[]int{99, 99, 99, 99}}
+				v.rejectExtIdsMap = nil
 			},
 			wantPathLen: 2,
 		},
@@ -348,6 +350,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject ExtendedKeyUsage extension
 				v.rejectExtIds = []asn1.ObjectIdentifier{[]int{2, 5, 29, 37}}
+				v.rejectExtIdsMap = nil
 			},
 		},
 		{
@@ -357,6 +360,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject ExtendedKeyUsage extension
 				v.rejectExtIds = []asn1.ObjectIdentifier{[]int{2, 5, 29, 37}}
+				v.rejectExtIdsMap = nil
 			},
 		},
 		{
@@ -366,6 +370,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject cert without ExtKeyUsageEmailProtection
 				v.extKeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection}
+				v.extKeyUsagesMap = nil
 			},
 		},
 		{
@@ -374,6 +379,7 @@ func TestValidate(t *testing.T) {
 			wantPathLen: 3,
 			modifyCV: func(v *chainValidator) {
 				v.extKeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+				v.extKeyUsagesMap = nil
 			},
 		},
 		{
@@ -383,6 +389,7 @@ func TestValidate(t *testing.T) {
 			modifyCV: func(v *chainValidator) {
 				// reject cert without ExtKeyUsageEmailProtection
 				v.extKeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageEmailProtection}
+				v.extKeyUsagesMap = nil
 			},
 		},
 		{
@@ -391,6 +398,7 @@ func TestValidate(t *testing.T) {
 			wantPathLen: 2,
 			modifyCV: func(v *chainValidator) {
 				v.extKeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+				v.extKeyUsagesMap = nil
 			},
 		},
 	}
