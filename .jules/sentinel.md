@@ -1,0 +1,4 @@
+## 2026-04-06 - Remove unintentional exposure of profiling endpoints
+**Vulnerability:** The POSIX personality entry point (`cmd/tesseract/posix/main.go`) imported `_ "net/http/pprof"` and `_ "expvar"`. This inadvertently registered profiling endpoints (`/debug/pprof/*`) and metrics endpoints (`/debug/vars`) on the `http.DefaultServeMux`. These endpoints would be exposed if a custom router is not correctly shielding them.
+**Learning:** Even if `http.DefaultServeMux` is generally avoided or not explicitly passed to `ListenAndServe`, importing these packages always modifies global state and poses an information leakage risk (CWE-200), exposing sensitive memory profiling and application internals.
+**Prevention:** Never import `_ "net/http/pprof"` or `_ "expvar"` in production binary entry points unless explicitly required and securely bound to a protected internal multiplexer/port. Rely on OpenTelemetry (otel) or other dedicated systems for metrics.
