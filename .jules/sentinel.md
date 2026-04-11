@@ -1,0 +1,5 @@
+
+## 2026-04-11 - Prevent Profiling and Metrics Endpoint Exposure (CWE-200)
+**Vulnerability:** Profiling and metrics endpoints (`/debug/pprof/*` and `/debug/vars`) were inadvertently exposed on `http.DefaultServeMux` because `_ "net/http/pprof"` and `_ "expvar"` were imported in the POSIX cloud personality entry point (`cmd/tesseract/posix/main.go`). This allowed potential attackers to access internal metrics and stack traces, exposing sensitive application state.
+**Learning:** Anonymous imports of `net/http/pprof` or `expvar` automatically register HTTP handlers on the default multiplexer (`http.DefaultServeMux`). If a public-facing HTTP server uses this multiplexer or falls back to it, these sensitive debug endpoints are exposed to the public internet, violating CWE-200.
+**Prevention:** Do not import `_ "net/http/pprof"` or `_ "expvar"` in entry points (`cmd/tesseract/*/main.go`) or any package used in production binaries. If profiling or metrics are required, explicitly bind their handlers to a separate internal-only or protected multiplexer, or use secure observability solutions like OpenTelemetry (which is already configured).
