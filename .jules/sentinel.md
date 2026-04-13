@@ -1,0 +1,7 @@
+## 2026-04-13 - Removed insecure debug and profiling endpoints in cloud personality entry points
+
+**Vulnerability:** The project imported `_ "net/http/pprof"` and `_ "expvar"` in the POSIX cloud personality entry point (`cmd/tesseract/posix/main.go`). This inadvertently exposed profiling endpoints (`/debug/pprof/*`) and metrics endpoints (`/debug/vars`) on the `http.DefaultServeMux`. Doing so in a public-facing service can lead to information exposure (CWE-200), allowing an attacker to gather sensitive internal information about the application's runtime.
+
+**Learning:** These side-effect imports automatically register handlers on `http.DefaultServeMux`. If `http.ListenAndServe` or `http.Server` is used without explicitly specifying a custom, isolated multiplexer (e.g., using `http.ServeMux`), those debug endpoints are exposed to anyone who can access the server. The OpenTelemetry (otel) handlers were already added to track storage operations correctly, but the pprof and expvar imports remained from earlier debugging and were forgotten.
+
+**Prevention:** Never import `_ "net/http/pprof"` or `_ "expvar"` in entry points intended for public deployment. If profiling or metrics are required, explicitly bind those handlers to a separate, internal, and authenticated network interface or a completely isolated `http.ServeMux` that is not exposed to the public internet. Alternatively, rely on OpenTelemetry for observability in production environments, as is standard for AWS and GCP personalities.
