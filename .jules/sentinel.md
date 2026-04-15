@@ -1,0 +1,4 @@
+## 2024-05-24 - Remove inadvertent exposure of profiling endpoints
+**Vulnerability:** The `cmd/tesseract/posix/main.go` entrypoint imported `net/http/pprof` and `expvar`, which automatically bound profiling endpoints (`/debug/pprof/*` and `/debug/vars`) to `http.DefaultServeMux`.
+**Learning:** In Go, importing `net/http/pprof` or `expvar` for side-effects registers HTTP handlers on the default ServeMux. If this Mux is used to serve public traffic (or if the application doesn't explicitly restrict access), sensitive internal metrics and profiling data can be exposed to attackers (CWE-200).
+**Prevention:** Avoid blank imports of `net/http/pprof` and `expvar` in production binaries unless they are explicitly bound to a secure, internal-only administrative port. Use custom `http.ServeMux` instances instead of `http.DefaultServeMux` to minimize accidental handler exposure.
