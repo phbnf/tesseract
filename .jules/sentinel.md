@@ -1,0 +1,4 @@
+## 2026-04-18 - Fix exposure of pprof and expvar profiling endpoints
+**Vulnerability:** The POSIX cloud personality binary implicitly exposed profiling endpoints (`/debug/pprof/*`) and metrics endpoints (`/debug/vars`) via `http.DefaultServeMux` due to blank imports of `net/http/pprof` and `expvar`. This exposed server internals and sensitive profiling data to unauthorized actors (CWE-200).
+**Learning:** Adding `net/http/pprof` or `expvar` imports automatically registers debug routes on `http.DefaultServeMux`. If `http.Server` starts without explicit custom multiplexers or with open bindings, these become publicly accessible. The POSIX handler was attaching to the default server mux exposing these.
+**Prevention:** Avoid blank importing `net/http/pprof` and `expvar` in production entry points unless they are isolated to a separate internal listener or tightly controlled administrative endpoint. OpenTelemetry is generally preferred and already used here.
