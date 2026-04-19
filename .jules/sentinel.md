@@ -1,0 +1,4 @@
+## 2026-04-19 - Mitigate Profile Information Leakage in Posix Personality
+**Vulnerability:** The posix cloud personality entry point `cmd/tesseract/posix/main.go` inadvertently exposed the profiling and metric endpoint `/debug/pprof/*` because `net/http/pprof` was imported to leverage the initialization side effect. This exposes sensitive details of the running processes, allowing profiling info leakage, a CWE-200 vulnerability.
+**Learning:** `net/http/pprof` registers the profiling handlers directly on the `http.DefaultServeMux` via its `init` function. When using `http.Handle` to register on `DefaultServeMux`, the profiling endpoints are also silently exposed.
+**Prevention:** Do not import `net/http/pprof` in cloud personality or custom entry points using `http.DefaultServeMux`. If profiling is required, mount the handlers selectively using a custom `http.ServeMux` and ensure they are on an internal or protected port, separate from the public internet API port.
