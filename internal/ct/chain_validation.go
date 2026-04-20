@@ -111,10 +111,15 @@ type chainValidator struct {
 	rejectExtIds []asn1.ObjectIdentifier
 	// acceptSHA1 specifies whether cert chains using SHA-1 based signing algorithms are allowed.
 	acceptSHA1 bool
+
+	// acceptEKUsMap is a map version of extKeyUsages for faster lookups.
+	acceptEKUsMap map[x509.ExtKeyUsage]bool
+	// rejectExtIdsMap is a map version of rejectExtIds for faster lookups.
+	rejectExtIdsMap map[string]bool
 }
 
 func NewChainValidator(trustedRoots *x509util.PEMCertPool, rejectExpired, rejectUnexpired bool, notAfterStart, notAfterLimit *time.Time, extKeyUsages []x509.ExtKeyUsage, rejectExtIds []asn1.ObjectIdentifier, acceptSHA1 bool) *chainValidator {
-	return &chainValidator{
+	cv := &chainValidator{
 		trustedRoots:    trustedRoots,
 		rejectExpired:   rejectExpired,
 		rejectUnexpired: rejectUnexpired,
@@ -123,6 +128,28 @@ func NewChainValidator(trustedRoots *x509util.PEMCertPool, rejectExpired, reject
 		extKeyUsages:    extKeyUsages,
 		rejectExtIds:    rejectExtIds,
 		acceptSHA1:      acceptSHA1,
+	}
+	cv.refreshMaps()
+	return cv
+}
+
+func (cv *chainValidator) refreshMaps() {
+	if len(cv.extKeyUsages) > 0 {
+		cv.acceptEKUsMap = make(map[x509.ExtKeyUsage]bool, len(cv.extKeyUsages))
+		for _, eku := range cv.extKeyUsages {
+			cv.acceptEKUsMap[eku] = true
+		}
+	} else {
+		cv.acceptEKUsMap = nil
+	}
+
+	if len(cv.rejectExtIds) > 0 {
+		cv.rejectExtIdsMap = make(map[string]bool, len(cv.rejectExtIds))
+		for _, id := range cv.rejectExtIds {
+			cv.rejectExtIdsMap[id.String()] = true
+		}
+	} else {
+		cv.rejectExtIdsMap = nil
 	}
 }
 
@@ -201,31 +228,19 @@ func (cv chainValidator) validate(chain []*x509.Certificate) ([]*x509.Certificat
 	}
 
 	// Check for unwanted extension types, if required.
-	// TODO(al): Refactor CertValidationOpts c'tor to a builder pattern and
-	// pre-calc this in there
-	if len(cv.rejectExtIds) != 0 {
-		badIDs := make(map[string]bool)
-		for _, id := range cv.rejectExtIds {
-			badIDs[id.String()] = true
-		}
+	if len(cv.rejectExtIdsMap) != 0 {
 		for idx, ext := range cert.Extensions {
 			extOid := ext.Id.String()
-			if _, ok := badIDs[extOid]; ok {
+			if _, ok := cv.rejectExtIdsMap[extOid]; ok {
 				return nil, fmt.Errorf("rejecting certificate containing extension %v at index %d", extOid, idx)
 			}
 		}
 	}
 
-	// TODO(al): Refactor CertValidationOpts c'tor to a builder pattern and
-	// pre-calc this in there too.
-	if len(cv.extKeyUsages) > 0 {
-		acceptEKUs := make(map[x509.ExtKeyUsage]bool)
-		for _, eku := range cv.extKeyUsages {
-			acceptEKUs[eku] = true
-		}
+	if len(cv.acceptEKUsMap) > 0 {
 		good := false
 		for _, certEKU := range cert.ExtKeyUsage {
-			if _, ok := acceptEKUs[certEKU]; ok {
+			if _, ok := cv.acceptEKUsMap[certEKU]; ok {
 				good = true
 				break
 			}
