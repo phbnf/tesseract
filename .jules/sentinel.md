@@ -1,0 +1,4 @@
+## 2026-04-20 - Exposing Profiling Endpoints via `net/http/pprof`
+**Vulnerability:** The POSIX cloud personality binary (`cmd/tesseract/posix/main.go`) incorrectly imported `_ "net/http/pprof"` and `_ "expvar"`, exposing profiling and debugging endpoints (like `/debug/pprof/*` and `/debug/vars`) via `http.DefaultServeMux`, leading to potential CWE-200 (Information Exposure) vulnerability.
+**Learning:** Development tools and metric systems can unintentionally bind endpoints to the global `http.DefaultServeMux` upon import, causing them to be exposed on public-facing servers.
+**Prevention:** Avoid blindly importing packages that rely on side-effects to configure global state. Specifically, refrain from using `_ "net/http/pprof"` in public services; use dedicated metric tools like OpenTelemetry which are safe from side-channel endpoint exposure.
