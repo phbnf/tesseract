@@ -66,12 +66,13 @@ At the moment, we are aiming for Beta in 2025Q3, and GA by the end of 2025.
 |  3  | static-ct-api APIs                                                                       | :white_check_mark: | alpha          |
 |  4  | Basic Antispam                                                                           | :white_check_mark: | alpha          |
 |  5  | Monitoring and metrics                                                                   | :white_check_mark: | alpha          |
-|  6  | Secure key management [#219](https://github.com/transparency-dev/tesseract/issues/219)   | :hammer:           | beta           |
+|  6  | Secure key management [#219](https://github.com/transparency-dev/tesseract/issues/219)   | :white_check_mark: | beta           |
 |  7  | Witnessing                                                                               | :white_check_mark: | beta           |
-|  8  | Structured logging [#416](https://github.com/transparency-dev/tesseract/issues/416)      | :hammer:           | beta           |
-|  9  | CCADB based root update [#212](https://github.com/transparency-dev/tesseract/issues/212) | :hammer:           | beta           |
-|  10 | Client [#664](https://github.com/transparency-dev/tesseract/issues/664)                  | :hammer:           | 1.0            |
-|  11 | Stable APIs                                                                              | :hammer:           | 1.0            |
+|  8  | Structured logging [#416](https://github.com/transparency-dev/tesseract/issues/416)      | :white_check_mark: | beta           |
+|  9  | CCADB based root update [#212](https://github.com/transparency-dev/tesseract/issues/212) | :white_check_mark: | beta           |
+|  10 | Metadata json endpoint [#838](https://github.com/transparency-dev/tesseract/issues/838)  | :hammer:           | beta           |
+|  11 | Client [#664](https://github.com/transparency-dev/tesseract/issues/664)                  | :hammer:           | 1.0            |
+|  12 | Stable APIs                                                                              | :hammer:           | 1.0            |
 
 Current public library APIs are unlikely to change in any significant way,
 however the API is subject to minor breaking changes until we tag 1.0.
