@@ -1,0 +1,4 @@
+## 2024-05-15 - Unintentional Exposure of Profiling Endpoint
+**Vulnerability:** `net/http/pprof` was anonymously imported (`_ "net/http/pprof"`) in `cmd/tesseract/posix/main.go`, which automatically registers its handler with the default `http.ServeMux`. Since `posix/main.go` uses `http.Handle("/", logHandler)` without allocating a custom router, it exposes standard pprof endpoints to the public interface.
+**Learning:** Anonymous import of `net/http/pprof` or `expvar` alongside the use of the default `ServeMux` (often used in simple setups) unintentionally exposes sensitive internal application state and profiling functionality to unauthenticated external users.
+**Prevention:** Avoid importing `net/http/pprof` or `expvar` in production entry points unless they are explicitly bound to an internal-only port or protected by authentication. Use OpenTelemetry for performance metrics instead.
