@@ -1,0 +1,4 @@
+## 2025-02-12 - Fix Exposure of Profiling Endpoints (CWE-200)
+**Vulnerability:** Profiling and metrics endpoints (`/debug/pprof/*` and `/debug/vars`) were exposed on the global `http.DefaultServeMux` because `_ "net/http/pprof"` and `_ "expvar"` were imported in `cmd/tesseract/posix/main.go`.
+**Learning:** Importing these packages registers debug endpoints automatically on the default mux. Since the HTTP server used the default mux, these internal debugging details became publicly accessible, which is a High severity CWE-200 vulnerability.
+**Prevention:** Avoid using the global `http.DefaultServeMux` for public-facing HTTP servers, or ensure `net/http/pprof` and `expvar` are never imported in production entry points. Use custom routers and explicitly mount debugging endpoints only on internal ports if needed.
