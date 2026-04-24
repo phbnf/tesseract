@@ -1,0 +1,4 @@
+## 2025-04-24 - [CRITICAL] Fix Information Exposure (CWE-200) via pprof and expvar
+**Vulnerability:** The `cmd/tesseract/posix/main.go` file imported `net/http/pprof` and `expvar`. This exposed the `/debug/pprof/*` and `/debug/vars` endpoints on the global `http.DefaultServeMux`. These endpoints can leak sensitive internal information, causing a CWE-200 vulnerability.
+**Learning:** Importing profiling and debugging endpoints globally (`net/http/pprof`, `expvar`) on production binaries is a critical security risk because they bind directly to the default multiplexer, potentially exposing sensitive application and memory data publicly.
+**Prevention:** Never import `_ "net/http/pprof"` or `_ "expvar"` in production binaries directly. Explicitly configure monitoring and metrics to be bound to restricted internal-only administration ports instead of the public-facing HTTP multiplexer.
