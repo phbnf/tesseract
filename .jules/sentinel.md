@@ -1,0 +1,4 @@
+## 2025-04-25 - Remove pprof and expvar from HTTP handlers
+**Vulnerability:** The `net/http/pprof` and `expvar` packages were imported in `cmd/tesseract/posix/main.go`. This inadvertently exposes profiling endpoints (`/debug/pprof/*`) and variables (`/debug/vars`) on the `http.DefaultServeMux`. If `http.DefaultServeMux` is used or exposed (e.g., via a public HTTP server), it could leak sensitive internal application state and metrics, potentially leading to a CWE-200 vulnerability.
+**Learning:** Importing `net/http/pprof` or `expvar` for side-effects registers handlers on `http.DefaultServeMux`. Even if you intend to only expose specific handlers, if you are not careful, this can leak out.
+**Prevention:** Avoid importing `net/http/pprof` and `expvar` for side effects in production HTTP server entry points. If profiling is needed, register it on a separate internal-only server or use a tool like OpenTelemetry for metrics.
