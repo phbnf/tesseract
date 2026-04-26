@@ -1,0 +1,4 @@
+## 2025-04-26 - Fix CWE-200 Exposure of Profiling Endpoints
+**Vulnerability:** The application was exposing `net/http/pprof` and `expvar` endpoints (like `/debug/pprof/*` and `/debug/vars`) on the `http.DefaultServeMux` because these packages were imported via `_` in `cmd/tesseract/posix/main.go`. This exposes internal application profiling and memory metrics to the public, which is a CWE-200 vulnerability.
+**Learning:** In Go, importing `net/http/pprof` or `expvar` automatically registers handlers on `http.DefaultServeMux`. If an application uses this default mux for public HTTP traffic, these internal diagnostic endpoints become public without any explicit routing code.
+**Prevention:** Do not import `net/http/pprof` or `expvar` in binaries exposed to the public internet. If profiling is needed, configure a separate HTTP server strictly bound to a local or internal network address to serve these endpoints.
