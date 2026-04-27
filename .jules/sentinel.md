@@ -1,0 +1,4 @@
+## 2025-04-27 - Exposed Profiling and Metrics Endpoints (CWE-200)
+**Vulnerability:** The POSIX cloud personality (`cmd/tesseract/posix/main.go`) imported `_ "net/http/pprof"` and `_ "expvar"`, which automatically registered `/debug/pprof/*` and `/debug/vars` handlers on `http.DefaultServeMux`. Since the HTTP server was started without explicitly configuring a `Handler`, it defaulted to `http.DefaultServeMux`, making these debug endpoints public and exposing internal application state and metrics.
+**Learning:** Default multiplexers like `http.DefaultServeMux` should be avoided when creating public-facing HTTP servers, or imports like `net/http/pprof` and `expvar` must be strictly omitted, as they register themselves globally.
+**Prevention:** Avoid anonymous imports of `net/http/pprof` and `expvar` in entry point binaries unless debug endpoints are specifically required and protected by authentication/authorization mechanisms or bound to an internal-only port.
