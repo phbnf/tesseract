@@ -192,10 +192,10 @@ func newPOSIXStorageFunc(t *testing.T, root string) storage.CreateStorage {
 		}
 
 		sopts := storage.CTStorageOptions{
-			Appender:      appender,
-			Reader:        reader,
-			IssuerStorage: issuerStorage,
-			EnableAwaiter: false,
+			Appender:         appender,
+			Reader:           reader,
+			IssuerStorage:    issuerStorage,
+			EnablePubAwaiter: false,
 		}
 		s, err := storage.NewCTStorage(t.Context(), &sopts)
 		if err != nil {
