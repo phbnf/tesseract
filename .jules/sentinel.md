@@ -1,0 +1,4 @@
+## 2026-05-02 - Prevent CWE-200 by avoiding net/http/pprof auto-exposure
+**Vulnerability:** Profiling and metric endpoints were exposed via `net/http/pprof` because it was imported blindly. `net/http/pprof` registers endpoints on the default `http.DefaultServeMux` upon import.
+**Learning:** In Go, handlers exposing debugging tools can leak internal runtime information which is a security risk. Importing `net/http/pprof` specifically is highly dangerous unless deliberately isolated behind restricted access endpoints or entirely decoupled from public-facing multiplexers.
+**Prevention:** Do not import `_ "net/http/pprof"`. If profiling is required, manually register its handlers on a dedicated internal mux rather than on `http.DefaultServeMux`, ensuring standard applications only register necessary HTTP endpoints.
