@@ -1,0 +1,4 @@
+## 2025-05-03 - Mitigate global http.DefaultServeMux exposure
+**Vulnerability:** Automatically exposing the profiling endpoints (/debug/pprof) and variables endpoints (/debug/vars) globally on http.DefaultServeMux via blank imports. This could inadvertently expose sensitive debugging information or provide a vector for Denial of Service if the main application router is or falls back to http.DefaultServeMux without proper access controls (CWE-200).
+**Learning:** Adding debugging endpoints should be an explicit and controlled process, not automatic through side-effect imports in main deployment files.
+**Prevention:** Avoid using `_ "net/http/pprof"` and `_ "expvar"` in entry points, especially for services deployed to cloud environments (like posix and gcp in this codebase). If pprof or expvar is needed, their handlers should be explicitly registered to a dedicated, protected serve mux.
