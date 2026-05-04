@@ -1,0 +1,4 @@
+## 2024-11-20 - [HIGH] Fix exposed pprof and expvar endpoints
+**Vulnerability:** The codebase inadvertently imports `net/http/pprof` and `expvar` using the blank identifier (`_ "net/http/pprof"`) in the cloud personality entry points (`cmd/tesseract/gcp/main.go` and `cmd/tesseract/posix/main.go`).
+**Learning:** Importing these packages with a blank identifier automatically registers their profiling and metrics endpoints (`/debug/pprof/*` and `/debug/vars`) on the `http.DefaultServeMux`. If this mux is exposed to the public internet, it can lead to CWE-200 vulnerabilities by leaking sensitive information about the application's runtime and environment.
+**Prevention:** Avoid blank imports of `net/http/pprof` and `expvar` in production entry points. For monitoring and profiling in production, consider safer alternatives or bind the default multiplexer to a local or internal network interface only.
