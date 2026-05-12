@@ -1,0 +1,4 @@
+## 2025-02-12 - Prevent Information Exposure via pprof and expvar
+**Vulnerability:** The cloud personality entry points (`cmd/tesseract/gcp/main.go` and `cmd/tesseract/posix/main.go`) import `net/http/pprof` and `expvar`. This unintentionally registers profiling and metric endpoints (`/debug/pprof/*` and `/debug/vars`) on the default HTTP multiplexer `http.DefaultServeMux`, leading to a CWE-200 vulnerability by exposing internal application data publicly.
+**Learning:** Anonymous imports for profiling and debugging should never be used in production applications, especially on public-facing servers.
+**Prevention:** Remove anonymous imports of `net/http/pprof` and `expvar` from the entry point packages. Use explicit, isolated routes for debugging if necessary, or rely on existing observability frameworks (like OpenTelemetry in this project) instead of default HTTP debug handlers.
