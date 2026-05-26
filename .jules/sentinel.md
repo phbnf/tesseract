@@ -1,0 +1,4 @@
+## 2025-05-26 - Prevent CWE-200 by avoiding anonymous imports of pprof and expvar
+**Vulnerability:** The `cmd/tesseract/gcp/main.go` and `cmd/tesseract/posix/main.go` files had anonymous imports of `net/http/pprof` and `expvar`. This automatically registered profiling and metrics endpoints (`/debug/pprof/*` and `/debug/vars`) on the globally exposed `http.DefaultServeMux`, which could lead to an information exposure vulnerability (CWE-200).
+**Learning:** Cloud personalities utilize OpenTelemetry (otel) for handlers and deliberately avoid exposing `net/http/pprof` endpoints. Exposing these globally by mistake can leak sensitive operational data to unauthorized actors. BadgerDB metrics in the posix personality shouldn't be exposed globally.
+**Prevention:** Avoid using anonymous imports of `net/http/pprof` and `expvar` in files that start `http.Server` entry points, especially those using `http.DefaultServeMux`. Cloud handlers use structured otel reporting instead.
