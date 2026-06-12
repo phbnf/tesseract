@@ -1,0 +1,4 @@
+## 2026-06-12 - Prevent Profiling Endpoints Exposure
+**Vulnerability:** The application was anonymously importing `net/http/pprof` and `expvar` in `cmd/tesseract/posix/main.go` and `cmd/tesseract/gcp/main.go`. This automatically exposes profiling and diagnostic endpoints on `http.DefaultServeMux` (e.g., `/debug/pprof/*` and `/debug/vars`). This exposes sensitive performance and state metrics, potentially leading to information disclosure (CWE-200).
+**Learning:** Anonymous imports that register endpoints on the default mux are risky and can inadvertently expose administrative/diagnostic panels publicly if the application binds its public-facing server to the default mux or if these endpoints aren't strictly gated.
+**Prevention:** Avoid anonymous imports for `net/http/pprof` and `expvar` in production binaries. If these endpoints are needed, intentionally mount them on an internal administrative mux bound to a different local port (e.g., `localhost:8081`).
