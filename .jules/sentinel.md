@@ -1,0 +1,4 @@
+## 2026-06-23 - Remove pprof and expvar from cloud personalities
+**Vulnerability:** Profiling and metric endpoints were exposed via anonymous imports of `net/http/pprof` and `expvar` in `cmd/tesseract/posix/main.go` and `cmd/tesseract/gcp/main.go`. This inadvertently exposed sensitive application state and operational data at `/debug/pprof/*` and `/debug/vars` on `http.DefaultServeMux` (CWE-200).
+**Learning:** Anonymous imports that register handlers on the global `http.DefaultServeMux` must be strictly avoided, especially in cloud or public-facing HTTP server binaries, as they expose administrative details to unauthorized users.
+**Prevention:** Avoid `_ "net/http/pprof"` and `_ "expvar"` imports in application entry points. Instead, utilize structured telemetry (e.g., OpenTelemetry) to capture metrics and traces without exposing direct HTTP endpoints.
