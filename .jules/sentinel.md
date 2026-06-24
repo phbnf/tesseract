@@ -1,0 +1,4 @@
+## 2026-06-24 - Remove pprof and expvar to prevent CWE-200
+**Vulnerability:** The binaries for cloud personalities (GCP and POSIX) inadvertently imported `net/http/pprof` and `expvar`, exposing profiling endpoints (`/debug/pprof/*` and `/debug/vars`) on the `http.DefaultServeMux`. This leads to a CWE-200 vulnerability (exposure of sensitive information).
+**Learning:** Anonymous imports of `net/http/pprof` and `expvar` automatically register their endpoints on the globally accessible default multiplexer. If a public-facing application uses this multiplexer or serves traffic where it shouldn't be exposed, it leaks internal metrics and performance data.
+**Prevention:** Avoid using anonymous imports for `net/http/pprof` and `expvar` in production entry points. If profiling or metrics are necessary, they should be explicitly mounted on a separate, protected server/multiplexer or use more secure alternatives like OpenTelemetry.
