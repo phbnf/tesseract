@@ -1,0 +1,4 @@
+## 2026-06-26 - CWE-200: Profiling Endpoint Exposure via Anonymous Imports
+**Vulnerability:** The POSIX and GCP cloud personality entry points inadvertently exposed profiling and metrics endpoints (`/debug/pprof/*` and `/debug/vars`) on `http.DefaultServeMux` by importing `_ "net/http/pprof"` and `_ "expvar"`.
+**Learning:** Anonymous imports of these packages automatically register their HTTP handlers on the global multiplexer. In cloud-specific deployments running HTTP servers, this exposes sensitive internal performance data and system metrics to the public.
+**Prevention:** Do not use anonymous imports for `net/http/pprof` or `expvar` in production HTTP server entry points. Cloud personalities should utilize OpenTelemetry (otel) for observability, avoiding reliance on globally exposed debug endpoints.
