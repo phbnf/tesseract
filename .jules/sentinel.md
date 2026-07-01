@@ -1,0 +1,4 @@
+## 2024-05-15 - Unintentional Exposure of Profiling and Metrics Endpoints
+**Vulnerability:** Profiling (`net/http/pprof`) and metrics (`expvar`) endpoints were exposed due to anonymous imports in `cmd/tesseract/posix/main.go` and `cmd/tesseract/gcp/main.go`.
+**Learning:** Anonymous imports of these packages automatically register handlers on `http.DefaultServeMux`. If `http.DefaultServeMux` is used or exposed without proper authentication or network segmentation, sensitive internal state and performance data can be leaked to unauthorized users (CWE-200).
+**Prevention:** Avoid anonymous imports of `net/http/pprof` and `expvar` in production binaries. If profiling or metrics are required, explicitly register them on a dedicated, internal-only `ServeMux` that is securely authenticated or isolated from public access.
