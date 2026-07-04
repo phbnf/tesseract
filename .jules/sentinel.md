@@ -1,0 +1,4 @@
+## 2025-07-04 - HTTP DefaultServeMux Exposure (CWE-200)
+**Vulnerability:** Anonymous imports of `net/http/pprof` and `expvar` automatically register profiling and BadgerDB metrics endpoints on the global `http.DefaultServeMux`. If `http.ListenAndServe()` or an `http.Server` handles requests without properly sandboxing the DefaultServeMux, these endpoints become exposed to the public.
+**Learning:** Even if `tesseract` uses a custom handler for most routes, importing `_ "net/http/pprof"` and `_ "expvar"` in binaries like `cmd/tesseract/posix/main.go` and `cmd/tesseract/gcp/main.go` registers dangerous profiling endpoints `/debug/pprof/*` and `/debug/vars` globally.
+**Prevention:** Do not use anonymous imports for `net/http/pprof` or `expvar` in public-facing binaries. If profiling or metrics are required, explicitly attach them to an internal, authenticated, or bound-to-localhost multiplexer.
