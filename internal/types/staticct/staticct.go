@@ -269,9 +269,9 @@ func ParseCTExtensionsBytes(ext []byte) (uint64, error) {
 	return leafIdx, nil
 }
 
-// ParseCTExtensions parses base64-encoded CTExtensions into an index.
+// ParseCTExtensionsB64 parses base64-encoded CTExtensions into an index.
 // Code is inspired by https://github.com/FiloSottile/sunlight/blob/main/tile.go.
-func ParseCTExtensions(ext string) (uint64, error) {
+func ParseCTExtensionsB64(ext string) (uint64, error) {
 	extensionBytes, err := base64.StdEncoding.DecodeString(ext)
 	if err != nil {
 		return 0, fmt.Errorf("can't decode extensions: %v", err)
@@ -307,7 +307,6 @@ type Entry struct {
 	RawExtensions     string
 	LeafIndex         uint64
 }
-
 
 // UnmarshalText implements encoding/TextUnmarshaler and reads EntryBundles
 // which are encoded using the Static CT API spec.

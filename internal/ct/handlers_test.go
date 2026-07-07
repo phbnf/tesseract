@@ -570,7 +570,7 @@ func TestAddChain(t *testing.T) {
 				}
 
 				// Check that the Extensions contains the expected index.
-				idx, err := staticct.ParseCTExtensions(gotRsp.Extensions)
+				idx, err := staticct.ParseCTExtensionsB64(gotRsp.Extensions)
 				if err != nil {
 					t.Errorf("Failed to parse extensions %q: %v", gotRsp.Extensions, err)
 				}
@@ -716,7 +716,7 @@ func TestAddPreChain(t *testing.T) {
 				}
 
 				// Check that the Extensions contains the expected index.
-				idx, err := staticct.ParseCTExtensions(gotRsp.Extensions)
+				idx, err := staticct.ParseCTExtensionsB64(gotRsp.Extensions)
 				if err != nil {
 					t.Errorf("Failed to parse extensions %q: %v", gotRsp.Extensions, err)
 				}

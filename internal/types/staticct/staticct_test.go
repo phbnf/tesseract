@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package staticct
+
 import (
 	"bytes"
 	"testing"

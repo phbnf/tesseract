@@ -55,7 +55,6 @@ type KV struct {
 	V []byte
 }
 
-
 // IssuerStorage issuer certificates under their hex encoded sha256.
 type IssuerStorage interface {
 	AddIfNotExist(ctx context.Context, kv []KV) error
@@ -218,4 +217,3 @@ func cachedStoreIssuers(s IssuerStorage) func(context.Context, []KV) error {
 		return nil
 	}
 }
-

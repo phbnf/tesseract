@@ -39,9 +39,9 @@ import (
 	"github.com/transparency-dev/tesseract/internal/otel"
 
 	"github.com/transparency-dev/tesseract/internal/types/rfc6962"
+	"github.com/transparency-dev/tesseract/internal/types/staticct"
 	"github.com/transparency-dev/tesseract/internal/types/tls"
 	"github.com/transparency-dev/tesseract/internal/x509util"
-	"github.com/transparency-dev/tesseract/internal/types/staticct"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
@@ -521,11 +521,12 @@ func addChainInternal(ctx context.Context, opts *HandlerOptions, log *log, w htt
 		if err != nil {
 			return http.StatusInternalServerError, []attribute.KeyValue{duplicateKey.Bool(index.IsDup)}, fmt.Errorf("could not resolve duplicate: %v", err)
 		}
-		if err := entrySCTsMatch(sctInput, entry, index.Index); err != nil {
-			return http.StatusInternalServerError, []attribute.KeyValue{duplicateKey.Bool(index.IsDup)}, fmt.Errorf("deduplicated entry in storage does not match submitted entry: %w", err)
+		if err := sctMatchesEntry(sctInput, entry, index.Index); err != nil {
+			return http.StatusInternalServerError, []attribute.KeyValue{duplicateKey.Bool(index.IsDup)}, fmt.Errorf("deduplicated entry in storage does not match submitted entry: %v", err)
 		}
 	} else {
 		var err error
+		// Build the full leaf at index like Tessera will do, then construct the SCT from it.
 		leafBytes := entry.MerkleTreeLeaf(index.Index)
 		sctInput, err = staticct.ExtractCertificateTimestampFromLeaf(leafBytes)
 		if err != nil {
@@ -556,12 +557,21 @@ func addChainInternal(ctx context.Context, opts *HandlerOptions, log *log, w htt
 	return http.StatusOK, []attribute.KeyValue{duplicateKey.Bool(index.IsDup)}, nil
 }
 
-// entrySCTsMatch checks that sctInput fields match with an entry.
+// sctMatchesEntry checks that sctInput fields match with an entry.
 // It checks for all the sctInput fields, except for the timestamp which might
 // not be set in the entry yet.
-func entrySCTsMatch(sct *rfc6962.CertificateTimestamp, e *ctonly.Entry, idx uint64) error {
+func sctMatchesEntry(sct *rfc6962.CertificateTimestamp, e *ctonly.Entry, idx uint64) error {
+	if sct == nil {
+		return errors.New("sct is nil")
+	}
+	if e == nil {
+		return errors.New("entry is nil")
+	}
 	extractedIdx, err := staticct.ParseCTExtensionsBytes(sct.Extensions)
-	if err != nil || extractedIdx != idx {
+	if err != nil {
+		return fmt.Errorf("ParseCTExtensionsBytes: %v", err)
+	}
+	if extractedIdx != idx {
 		return fmt.Errorf("index mismatch: stored=%d, expected=%d", extractedIdx, idx)
 	}
 	isPrecert := sct.EntryType == rfc6962.PrecertLogEntryType
@@ -570,11 +580,17 @@ func entrySCTsMatch(sct *rfc6962.CertificateTimestamp, e *ctonly.Entry, idx uint
 	}
 	var sctCert []byte
 	if isPrecert {
+		if sct.PrecertEntry == nil {
+			return errors.New("sct.PrecertEntry is nil")
+		}
 		sctCert = sct.PrecertEntry.TBSCertificate
 		if !bytes.Equal(sct.PrecertEntry.IssuerKeyHash[:], e.IssuerKeyHash) {
 			return fmt.Errorf("issuerKeyHash mismatch: stored=issuer/%x != submitted=issuer/%x", sct.PrecertEntry.IssuerKeyHash[:], e.IssuerKeyHash)
 		}
 	} else {
+		if sct.X509Entry == nil {
+			return errors.New("sct.X509Entry is nil")
+		}
 		sctCert = sct.X509Entry.Data
 	}
 	if !bytes.Equal(sctCert, e.Certificate) {
