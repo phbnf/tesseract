@@ -32,7 +32,7 @@ require (
 	github.com/rivo/tview v0.42.0
 	github.com/transparency-dev/formats v0.1.2-0.20260629100010-fa283eb7462a
 	github.com/transparency-dev/merkle v0.0.3-0.20260629095233-a1adddb6323b
-	github.com/transparency-dev/tessera v1.0.3-0.20260706113807-010a91a4cae8
+	github.com/transparency-dev/tessera v1.0.3-0.20260708122718-d7b88fdfe3c0
 	go.opentelemetry.io/contrib/detectors/gcp v1.44.0
 	go.opentelemetry.io/contrib/exporters/autoexport v0.69.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
