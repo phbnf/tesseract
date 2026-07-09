@@ -18,10 +18,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -49,6 +51,8 @@ import (
 	"github.com/transparency-dev/tesseract/internal/hammer/loadtest"
 	"github.com/transparency-dev/tesseract/internal/types/rfc6962"
 	"github.com/transparency-dev/tesseract/internal/types/staticct"
+	tlstypes "github.com/transparency-dev/tesseract/internal/types/tls"
+	"github.com/transparency-dev/tesseract/internal/x509util"
 	"golang.org/x/mod/sumdb/note"
 	"golang.org/x/net/http2"
 )
@@ -132,11 +136,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	pubKey, err := parseLogPublicKeyB64(*logPubKey)
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to parse log public key", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	r := mustCreateReaders(ctx, logURL)
 	if len(writeLogURL) == 0 {
 		writeLogURL = logURL
 	}
-	w := mustCreateWriters(writeLogURL)
+	w := mustCreateWriters(writeLogURL, newAddChainResponseVerifier(pubKey))
 
 	var cpRaw []byte
 	cons := client.UnilateralConsensus(r.ReadCheckpoint)
@@ -387,16 +397,11 @@ func verifySupportedKeyAlgorithm(key any) error {
 	}
 }
 
-// logSigVerifier creates a note.Verifier for the Static CT API log by taking
-// an origin string and a base64-encoded public key.
-func logSigVerifier(origin, b64PubKey string) (note.Verifier, error) {
-	if origin == "" {
-		return nil, errors.New("origin cannot be empty")
-	}
+// parseLogPublicKeyB64 decodes and parses a base64-encoded DER public key.
+func parseLogPublicKeyB64(b64PubKey string) (crypto.PublicKey, error) {
 	if b64PubKey == "" {
 		return nil, errors.New("log public key cannot be empty")
 	}
-
 	derBytes, err := base64.StdEncoding.DecodeString(b64PubKey)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding public key: %s", err)
@@ -404,6 +409,19 @@ func logSigVerifier(origin, b64PubKey string) (note.Verifier, error) {
 	pub, err := x509.ParsePKIXPublicKey(derBytes)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing public key: %v", err)
+	}
+	return pub, nil
+}
+
+// logSigVerifier creates a note.Verifier for the Static CT API log by taking
+// an origin string and a base64-encoded public key.
+func logSigVerifier(origin, b64PubKey string) (note.Verifier, error) {
+	if origin == "" {
+		return nil, errors.New("origin cannot be empty")
+	}
+	pub, err := parseLogPublicKeyB64(b64PubKey)
+	if err != nil {
+		return nil, err
 	}
 
 	verifierKey, err := tdnote.RFC6962VerifierString(origin, pub)
@@ -459,7 +477,7 @@ func mustCreateReaders(ctx context.Context, us []string) loadtest.LogReader {
 	return loadtest.NewRoundRobinReader(r)
 }
 
-func mustCreateWriters(us []string) loadtest.LeafWriter {
+func mustCreateWriters(us []string, verifyWriteResponse func(reqBytes []byte, respBytes []byte) (uint64, uint64, error)) loadtest.LeafWriter {
 	w := []loadtest.LeafWriter{}
 	for _, u := range us {
 		if !strings.HasSuffix(u, "/") {
@@ -471,12 +489,12 @@ func mustCreateWriters(us []string) loadtest.LeafWriter {
 			slog.ErrorContext(context.Background(), "Invalid log writer URL", slog.String("url", u), slog.Any("error", err))
 			os.Exit(1)
 		}
-		w = append(w, httpWriter(wURL, hc, *bearerTokenWrite))
+		w = append(w, httpWriter(wURL, hc, *bearerTokenWrite, verifyWriteResponse))
 	}
 	return loadtest.NewRoundRobinWriter(w)
 }
 
-func httpWriter(u *url.URL, hc *http.Client, bearerToken string) loadtest.LeafWriter {
+func httpWriter(u *url.URL, hc *http.Client, bearerToken string, verifyWriteResponse func(reqBytes []byte, respBytes []byte) (uint64, uint64, error)) loadtest.LeafWriter {
 	cTrace := &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {
 			slog.InfoContext(context.Background(), "connection established", slog.String("info", fmt.Sprintf("%#v", info)))
@@ -521,9 +539,9 @@ func httpWriter(u *url.URL, hc *http.Client, bearerToken string) loadtest.LeafWr
 		default:
 			return 0, 0, fmt.Errorf("write leaf was not OK. Status code: %d. Body: %q", resp.StatusCode, body)
 		}
-		index, timestamp, err := parseAddChainResponse(body)
+		index, timestamp, err := verifyWriteResponse(newLeaf, body)
 		if err != nil {
-			return 0, 0, fmt.Errorf("write leaf failed to parse response: %v", body)
+			return 0, 0, fmt.Errorf("write leaf failed to verify response: %v. Body: %q", err, body)
 		}
 		return index, timestamp, nil
 	}
@@ -544,18 +562,107 @@ func retryDelay(retryAfter string, defaultDur time.Duration) time.Duration {
 	return defaultDur
 }
 
-// parseAddChainResponse parses the add-chain response and returns the leaf
-// index from the extensions and timestamp from the response.
-// Code is inspired by https://github.com/FiloSottile/sunlight/blob/main/tile.go.
-func parseAddChainResponse(body []byte) (uint64, uint64, error) {
-	var resp rfc6962.AddChainResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return 0, 0, fmt.Errorf("can't parse add-chain response: %v", err)
+// newAddChainResponseVerifier returns a verification callback that parses the add-chain
+// response, verifies the SCT signature against the submitted request and log public
+// key, and returns the leaf index from the extensions and timestamp from the response.
+func newAddChainResponseVerifier(pubKey crypto.PublicKey) func(reqBytes []byte, respBytes []byte) (uint64, uint64, error) {
+	if pubKey == nil {
+		return func(reqBytes []byte, respBytes []byte) (uint64, uint64, error) {
+			return 0, 0, errors.New("cannot verify SCT: log public key is nil")
+		}
 	}
-
-	leafIdx, err := staticct.ParseCTExtensionsB64(resp.Extensions)
+	pubBytes, err := x509.MarshalPKIXPublicKey(pubKey)
 	if err != nil {
-		return 0, 0, fmt.Errorf("can't parse extensions: %v", err)
+		return func(reqBytes []byte, respBytes []byte) (uint64, uint64, error) {
+			return 0, 0, fmt.Errorf("failed to marshal public key: %w", err)
+		}
 	}
-	return uint64(leafIdx), resp.Timestamp, nil
+	expectedID := sha256.Sum256(pubBytes)
+
+	return func(reqBytes []byte, respBytes []byte) (uint64, uint64, error) {
+		if len(reqBytes) == 0 {
+			return 0, 0, errors.New("cannot verify SCT: submitted request payload is empty")
+		}
+
+		var resp rfc6962.AddChainResponse
+		if err := json.Unmarshal(respBytes, &resp); err != nil {
+			return 0, 0, fmt.Errorf("can't parse add-chain response: %v", err)
+		}
+
+		extBytes, err := base64.StdEncoding.DecodeString(resp.Extensions)
+		if err != nil {
+			return 0, 0, fmt.Errorf("can't decode base64 extensions in response: %w", err)
+		}
+
+		leafIdx, err := staticct.ParseCTExtensionsBytes(extBytes)
+		if err != nil {
+			return 0, 0, fmt.Errorf("can't parse extensions: %v", err)
+		}
+
+		var req rfc6962.AddChainRequest
+		if err := json.Unmarshal(reqBytes, &req); err != nil {
+			return 0, 0, fmt.Errorf("can't unmarshal submitted request: %w", err)
+		}
+		if len(req.Chain) == 0 {
+			return 0, 0, errors.New("submitted request chain is empty")
+		}
+
+		chainCerts := make([]*x509.Certificate, 0, len(req.Chain))
+		for _, der := range req.Chain {
+			cert, err := x509.ParseCertificate(der)
+			if err != nil {
+				return 0, 0, fmt.Errorf("can't parse cert in submitted chain: %w", err)
+			}
+			chainCerts = append(chainCerts, cert)
+		}
+
+		isPrecert, err := x509util.IsPrecertificate(chainCerts[0])
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to check if leaf is precertificate: %w", err)
+		}
+
+		entry, err := x509util.EntryFromChain(chainCerts, isPrecert, resp.Timestamp)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to build entry from submitted chain: %w", err)
+		}
+		defer x509util.ReturnEntry(entry)
+
+		var ikh [32]byte
+		if isPrecert {
+			copy(ikh[:], entry.IssuerKeyHash)
+		}
+		sctInput := *staticct.NewCertificateTimestamp(extBytes, resp.Timestamp, isPrecert, entry.Certificate, ikh)
+
+		if !bytes.Equal(resp.ID, expectedID[:]) {
+			return 0, 0, fmt.Errorf("SCT LogID mismatch: got %x, want %x", resp.ID, expectedID[:])
+		}
+
+		var ds rfc6962.DigitallySigned
+		if rest, err := tlstypes.Unmarshal(resp.Signature, &ds); err != nil {
+			return 0, 0, fmt.Errorf("failed to unmarshal DigitallySigned from AddChainResponse.Signature: %w", err)
+		} else if len(rest) > 0 {
+			return 0, 0, fmt.Errorf("extra data after DigitallySigned: %d bytes", len(rest))
+		}
+
+		data, err := tlstypes.Marshal(sctInput)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to tlstypes.Marshal sctInput: %w", err)
+		}
+		digest := sha256.Sum256(data)
+
+		switch pk := pubKey.(type) {
+		case *ecdsa.PublicKey:
+			if !ecdsa.VerifyASN1(pk, digest[:], ds.Signature) {
+				return 0, 0, errors.New("SCT ECDSA signature verification failed")
+			}
+		case *rsa.PublicKey:
+			if err := rsa.VerifyPKCS1v15(pk, crypto.SHA256, digest[:], ds.Signature); err != nil {
+				return 0, 0, fmt.Errorf("SCT RSA signature verification failed: %w", err)
+			}
+		default:
+			return 0, 0, fmt.Errorf("unsupported public key type: %T", pubKey)
+		}
+
+		return uint64(leafIdx), resp.Timestamp, nil
+	}
 }
