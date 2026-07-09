@@ -222,7 +222,7 @@ func TestIsPrecertificate(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		gotPrecert, err := isPrecertificate(test.cert)
+		gotPrecert, err := x509util.IsPrecertificate(test.cert)
 		t.Run(test.desc, func(t *testing.T) {
 			if err != nil {
 				if !test.wantErr {

@@ -14,6 +14,7 @@
 package x509util
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -310,4 +311,25 @@ func isPreIssuer(cert *x509.Certificate) bool {
 		}
 	}
 	return false
+}
+
+// IsPrecertificate tests if a certificate is a pre-certificate as defined in CT.
+// An error is returned if the CT extension is present but is not ASN.1 NULL as defined
+// by the spec.
+func IsPrecertificate(cert *x509.Certificate) (bool, error) {
+	if cert == nil {
+		return false, errors.New("nil certificate")
+	}
+
+	for _, ext := range cert.Extensions {
+		if rfc6962.OIDExtensionCTPoison.Equal(ext.Id) {
+			if !ext.Critical || !bytes.Equal(asn1.NullBytes, ext.Value) {
+				return false, fmt.Errorf("CT poison ext is not critical or invalid: %v", ext)
+			}
+
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
