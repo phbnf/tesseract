@@ -138,17 +138,17 @@ func NewCertificateTimestamp(ext []byte, timestamp uint64, isPrecert bool, cert 
 
 // ExtractCertificateTimestampFromLeaf parses a TLS-encoded MerkleTreeLeaf byte slice
 // and returns the corresponding CertificateTimestamp.
-func ExtractCertificateTimestampFromLeaf(leafBytes []byte) (*rfc6962.CertificateTimestamp, error) {
+func ExtractCertificateTimestampFromLeaf(leafBytes []byte) (rfc6962.CertificateTimestamp, error) {
 	var leaf rfc6962.MerkleTreeLeaf
 	if rest, err := tls.Unmarshal(leafBytes, &leaf); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal MerkleTreeLeaf: %w", err)
+		return rfc6962.CertificateTimestamp{}, fmt.Errorf("failed to unmarshal MerkleTreeLeaf: %w", err)
 	} else if len(rest) > 0 {
-		return nil, fmt.Errorf("extra data (%d bytes) after MerkleTreeLeaf", len(rest))
+		return rfc6962.CertificateTimestamp{}, fmt.Errorf("extra data (%d bytes) after MerkleTreeLeaf", len(rest))
 	}
 	if leaf.TimestampedEntry == nil {
-		return nil, errors.New("nil TimestampedEntry in MerkleTreeLeaf")
+		return rfc6962.CertificateTimestamp{}, errors.New("nil TimestampedEntry in MerkleTreeLeaf")
 	}
-	return &rfc6962.CertificateTimestamp{
+	return rfc6962.CertificateTimestamp{
 		SCTVersion:    rfc6962.V1,
 		SignatureType: rfc6962.CertificateTimestampSignatureType,
 		Timestamp:     leaf.TimestampedEntry.Timestamp,
@@ -163,7 +163,7 @@ func ExtractCertificateTimestampFromLeaf(leafBytes []byte) (*rfc6962.Certificate
 //
 // This implementation avoids unnecessary parsing and allocation by skipping over
 // uninteresting bytes and ignoring extensions and fingerprints.
-func ExtractSCTInputFromBundle(ebRaw []byte, N uint64) (*rfc6962.CertificateTimestamp, error) {
+func ExtractSCTInputFromBundle(ebRaw []byte, N uint64) (rfc6962.CertificateTimestamp, error) {
 	s := cryptobyte.String(ebRaw)
 
 	i := uint64(0)
@@ -171,7 +171,7 @@ func ExtractSCTInputFromBundle(ebRaw []byte, N uint64) (*rfc6962.CertificateTime
 		var timestamp uint64
 		var entryType uint16
 		if !s.ReadUint64(&timestamp) || !s.ReadUint16(&entryType) || timestamp > math.MaxInt64 {
-			return nil, fmt.Errorf("invalid data tile when reading entry %d", i)
+			return rfc6962.CertificateTimestamp{}, fmt.Errorf("invalid data tile when reading entry %d", i)
 		}
 
 		var l32 uint32
@@ -188,9 +188,9 @@ func ExtractSCTInputFromBundle(ebRaw []byte, N uint64) (*rfc6962.CertificateTime
 					!s.ReadUint16LengthPrefixed(&extensions) ||
 					// fingerprints
 					!s.ReadUint16LengthPrefixed(&fingerprints) {
-					return nil, fmt.Errorf("invalid data tile x509_entry at index %d", i)
+					return rfc6962.CertificateTimestamp{}, fmt.Errorf("invalid data tile x509_entry at index %d", i)
 				}
-				return NewCertificateTimestamp([]byte(extensions), timestamp, false, bytes.Clone(entry), [32]byte{}), nil
+				return *NewCertificateTimestamp([]byte(extensions), timestamp, false, bytes.Clone(entry), [32]byte{}), nil
 			}
 			if
 			// entry
@@ -199,7 +199,7 @@ func ExtractSCTInputFromBundle(ebRaw []byte, N uint64) (*rfc6962.CertificateTime
 				!s.ReadUint16(&l16) || !s.Skip(int(l16)) ||
 				// fingerprints
 				!s.ReadUint16(&l16) || !s.Skip(int(l16)) {
-				return nil, fmt.Errorf("invalid data tile x509_entry when reading index %d", i)
+				return rfc6962.CertificateTimestamp{}, fmt.Errorf("invalid data tile x509_entry when reading index %d", i)
 			}
 
 		case 1: // precert_entry
@@ -218,9 +218,9 @@ func ExtractSCTInputFromBundle(ebRaw []byte, N uint64) (*rfc6962.CertificateTime
 					!s.ReadUint24LengthPrefixed((*cryptobyte.String)(&entry)) ||
 					// fingerprints
 					!s.ReadUint16LengthPrefixed(&fingerprints) {
-					return nil, fmt.Errorf("invalid data tile precert_entry at index %d", i)
+					return rfc6962.CertificateTimestamp{}, fmt.Errorf("invalid data tile precert_entry at index %d", i)
 				}
-				return NewCertificateTimestamp([]byte(extensions), timestamp, true, bytes.Clone(defangedCrt), issuerKeyHash), nil
+				return *NewCertificateTimestamp([]byte(extensions), timestamp, true, bytes.Clone(defangedCrt), issuerKeyHash), nil
 			}
 			if
 			// issuer key hash
@@ -233,15 +233,15 @@ func ExtractSCTInputFromBundle(ebRaw []byte, N uint64) (*rfc6962.CertificateTime
 				!s.ReadUint24(&l32) || !s.Skip(int(l32)) ||
 				// fingerprints
 				!s.ReadUint16(&l16) || !s.Skip(int(l16)) {
-				return nil, fmt.Errorf("invalid data tile precert_entry when reading index %d", i)
+				return rfc6962.CertificateTimestamp{}, fmt.Errorf("invalid data tile precert_entry when reading index %d", i)
 			}
 		default:
-			return nil, fmt.Errorf("invalid data tile: unknown type %d", entryType)
+			return rfc6962.CertificateTimestamp{}, fmt.Errorf("invalid data tile: unknown type %d", entryType)
 		}
 		i++
 	}
 
-	return nil, fmt.Errorf("requested entry index %d, but found only %d entries", N, i)
+	return rfc6962.CertificateTimestamp{}, fmt.Errorf("requested entry index %d, but found only %d entries", N, i)
 }
 
 // ParseCTExtensionsBytes parses binary CTExtensions into an index.

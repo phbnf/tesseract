@@ -20,7 +20,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"time"
 
@@ -36,11 +35,8 @@ type sctSigner struct {
 	signer crypto.Signer
 }
 
-func (sctSigner *sctSigner) Sign(sctInput *rfc6962.CertificateTimestamp) (*rfc6962.SignedCertificateTimestamp, error) {
-	if sctInput == nil {
-		return nil, errors.New("sctInput is nil")
-	}
-	data, err := tls.Marshal(*sctInput)
+func (sctSigner *sctSigner) Sign(sctInput rfc6962.CertificateTimestamp) (*rfc6962.SignedCertificateTimestamp, error) {
+	data, err := tls.Marshal(sctInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize SCT data: %v", err)
 	}

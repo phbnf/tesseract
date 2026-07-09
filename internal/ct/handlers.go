@@ -510,7 +510,7 @@ func addChainInternal(ctx context.Context, opts *HandlerOptions, log *log, w htt
 		return http.StatusInternalServerError, nil, fmt.Errorf("couldn't resolve tessera future: %v", err)
 	}
 
-	var sctInput *rfc6962.CertificateTimestamp
+	var sctInput rfc6962.CertificateTimestamp
 	if index.IsDup {
 		if ok := opts.RateLimits.AcceptDedup(ctx); !ok {
 			w.Header().Add("Retry-After", strconv.Itoa(rand.IntN(5)+1)) // random retry within [1,6) seconds
@@ -521,7 +521,7 @@ func addChainInternal(ctx context.Context, opts *HandlerOptions, log *log, w htt
 		if err != nil {
 			return http.StatusInternalServerError, []attribute.KeyValue{duplicateKey.Bool(index.IsDup)}, fmt.Errorf("could not resolve duplicate: %v", err)
 		}
-		if err := sctMatchesEntry(sctInput, entry, index.Index); err != nil {
+		if err := sctMatchesEntry(sctInput, *entry, index.Index); err != nil {
 			return http.StatusInternalServerError, []attribute.KeyValue{duplicateKey.Bool(index.IsDup)}, fmt.Errorf("deduplicated entry in storage does not match submitted entry: %v", err)
 		}
 	} else {
@@ -560,13 +560,7 @@ func addChainInternal(ctx context.Context, opts *HandlerOptions, log *log, w htt
 // sctMatchesEntry checks that sctInput fields match with an entry.
 // It checks for all the sctInput fields, except for the timestamp which might
 // not be set in the entry yet.
-func sctMatchesEntry(sct *rfc6962.CertificateTimestamp, e *ctonly.Entry, idx uint64) error {
-	if sct == nil {
-		return errors.New("sct is nil")
-	}
-	if e == nil {
-		return errors.New("entry is nil")
-	}
+func sctMatchesEntry(sct rfc6962.CertificateTimestamp, e ctonly.Entry, idx uint64) error {
 	extractedIdx, err := staticct.ParseCTExtensionsBytes(sct.Extensions)
 	if err != nil {
 		return fmt.Errorf("ParseCTExtensionsBytes: %v", err)

@@ -107,42 +107,42 @@ func NewCTStorage(ctx context.Context, opts *CTStorageOptions) (*CTStorage, erro
 // extracts the SCT input fields from it.
 //
 // TODO(phbnf): cache entries (or more) to avoid reparsing the entire leaf bundle
-func (cts *CTStorage) DedupFuture(ctx context.Context, f tessera.IndexFuture) (*rfc6962.CertificateTimestamp, error) {
-	return trace1(ctx, "tesseract.storage.DedupFuture", func(ctx context.Context) (*rfc6962.CertificateTimestamp, error) {
+func (cts *CTStorage) DedupFuture(ctx context.Context, f tessera.IndexFuture) (rfc6962.CertificateTimestamp, error) {
+	return trace1(ctx, "tesseract.storage.DedupFuture", func(ctx context.Context) (rfc6962.CertificateTimestamp, error) {
 		idx, cpRaw, err := cts.awaiter.Await(ctx, f)
 		if err != nil {
-			return nil, fmt.Errorf("error waiting for Tessera index future and its integration: %w", err)
+			return rfc6962.CertificateTimestamp{}, fmt.Errorf("error waiting for Tessera index future and its integration: %w", err)
 		}
 
 		// A https://c2sp.org/static-ct-api logsize is on the second line
 		l := bytes.SplitN(cpRaw, []byte("\n"), 3)
 		if len(l) < 2 {
-			return nil, errors.New("invalid checkpoint - no size")
+			return rfc6962.CertificateTimestamp{}, errors.New("invalid checkpoint - no size")
 		}
 		ckptSize, err := strconv.ParseUint(string(l[1]), 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("invalid checkpoint - can't extract size: %v", err)
+			return rfc6962.CertificateTimestamp{}, fmt.Errorf("invalid checkpoint - can't extract size: %v", err)
 		}
 
 		eBIdx := idx.Index / layout.EntryBundleWidth
 		eBRaw, err := cts.reader.ReadEntryBundle(ctx, eBIdx, layout.PartialTileSize(0, eBIdx, ckptSize))
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				return nil, fmt.Errorf("leaf bundle at index %d not found: %v", eBIdx, err)
+				return rfc6962.CertificateTimestamp{}, fmt.Errorf("leaf bundle at index %d not found: %v", eBIdx, err)
 			}
-			return nil, fmt.Errorf("failed to fetch entry bundle at index %d: %v", eBIdx, err)
+			return rfc6962.CertificateTimestamp{}, fmt.Errorf("failed to fetch entry bundle at index %d: %v", eBIdx, err)
 		}
 		eIdx := idx.Index % layout.EntryBundleWidth
 		sct, err := staticct.ExtractSCTInputFromBundle(eBRaw, eIdx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract SCT input for entry %d in bundle index %d: %v", eIdx, eBIdx, err)
+			return rfc6962.CertificateTimestamp{}, fmt.Errorf("failed to extract SCT input for entry %d in bundle index %d: %v", eIdx, eBIdx, err)
 		}
 		extractedIdx, err := staticct.ParseCTExtensionsBytes(sct.Extensions)
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract index from extensions: %v", err)
+			return rfc6962.CertificateTimestamp{}, fmt.Errorf("failed to extract index from extensions: %v", err)
 		}
 		if extractedIdx != idx.Index {
-			return nil, fmt.Errorf("extracted index %d does not match expected index %d", extractedIdx, idx.Index)
+			return rfc6962.CertificateTimestamp{}, fmt.Errorf("extracted index %d does not match expected index %d", extractedIdx, idx.Index)
 		}
 		return sct, nil
 	})
