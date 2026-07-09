@@ -15,7 +15,6 @@
 package ct
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
@@ -28,7 +27,6 @@ import (
 	"time"
 
 	"github.com/transparency-dev/tesseract/internal/lax509"
-	"github.com/transparency-dev/tesseract/internal/types/rfc6962"
 	"github.com/transparency-dev/tesseract/internal/x509util"
 )
 
@@ -125,27 +123,6 @@ func NewChainValidator(trustedRoots *x509util.PEMCertPool, rejectExpired, reject
 		rejectExtIds:    rejectExtIds,
 		acceptSHA1:      acceptSHA1,
 	}
-}
-
-// isPrecertificate tests if a certificate is a pre-certificate as defined in CT.
-// An error is returned if the CT extension is present but is not ASN.1 NULL as defined
-// by the spec.
-func isPrecertificate(cert *x509.Certificate) (bool, error) {
-	if cert == nil {
-		return false, errors.New("nil certificate")
-	}
-
-	for _, ext := range cert.Extensions {
-		if rfc6962.OIDExtensionCTPoison.Equal(ext.Id) {
-			if !ext.Critical || !bytes.Equal(asn1.NullBytes, ext.Value) {
-				return false, fmt.Errorf("CT poison ext is not critical or invalid: %v", ext)
-			}
-
-			return true, nil
-		}
-	}
-
-	return false, nil
 }
 
 // parseChain parses the provided slice of DER certificates into a slice of Certificate structs.
@@ -299,7 +276,7 @@ func (cv chainValidator) Validate(unverifiedChain []*x509.Certificate, expecting
 		return nil, fmt.Errorf("chain failed to validate: %s", err)
 	}
 
-	isPrecert, err := isPrecertificate(validPath[0])
+	isPrecert, err := x509util.IsPrecertificate(validPath[0])
 	if err != nil {
 		return nil, fmt.Errorf("precert test failed: %s", err)
 	}
