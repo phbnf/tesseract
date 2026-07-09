@@ -553,7 +553,7 @@ func parseAddChainResponse(body []byte) (uint64, uint64, error) {
 		return 0, 0, fmt.Errorf("can't parse add-chain response: %v", err)
 	}
 
-	leafIdx, err := staticct.ParseCTExtensions(resp.Extensions)
+	leafIdx, err := staticct.ParseCTExtensionsB64(resp.Extensions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("can't parse extensions: %v", err)
 	}
