@@ -68,6 +68,13 @@ the format described by https://git.glasklar.is/sigsum/core/sigsum-go/-/blob/mai
 
 ## Codelab
 
+In this codelab, you'll bring a new TesseraCT POSIX instance up,
+and send certificate chains to it. These entries can either be
+preloaded from an existing RFC6962 log, or generated locally with
+the [hammer tool](/internal/hammer).
+
+### Preloading
+
 Generate an ECDSA key like so:
 
 ```bash
@@ -107,3 +114,49 @@ Note that running this command a second time may show a lot of errors with
 entries being sent to the log.
 Use a larger `start_index` to avoid submitting duplicate entries and running into
 this behaviour.
+
+### Hammer
+
+Generate ECDSA public and private keys like so:
+
+```bash
+openssl ecparam -name prime256v1 -genkey -noout -out /tmp/test-ecdsa-priv.pem 
+openssl ec -in /tmp/test-ecdsa-priv.pem -pubout > /tmp/test-ecdsa-pub.pem
+```
+
+Then, start a log with the following command:
+
+```bash
+go run ./cmd/tesseract/posix/ \
+  --http_endpoint=0.0.0.0:6962 \
+  --storage_dir=/tmp/ecdsa_log \
+  --slog_level=-4 \
+  --roots_pem_file=internal/hammer/testdata/test_root_ca_cert.pem \
+  --origin=example.com/test-ecdsa \
+  --private_key=/tmp/test-ecdsa-priv.pem \
+  --checkpoint_interval=2s \
+  --enable_publication_awaiter=false
+```
+
+In a different terminal, start the hammer:
+
+```bash
+go run ./internal/hammer \
+  --log_url=file:///tmp/ecdsa_log \
+  --write_log_url=http://localhost:6962/ \
+  --origin=example.com/test-ecdsa \
+  --log_public_key=$(openssl ec -pubin -inform PEM -in /tmp/test-ecdsa-pub.pem -outform der | base64 -w 0) \
+  --cert_sign_private_key_path=internal/hammer/testdata/test_leaf_cert_signing_private_key.pem \
+  --intermediate_ca_cert_path=internal/hammer/testdata/test_intermediate_ca_cert.pem \
+  --intermediate_ca_key_path=internal/hammer/testdata/test_intermediate_ca_private_key.pem \
+  --max_read_ops=10 \
+  --num_readers_random=2 \
+  --num_readers_full=2 \
+  --num_writers=500 \
+  --max_write_ops=500 \
+  --num_mmd_verifiers=1 \
+  --mmd_duration=60s \
+  --leaf_write_goal=4000 \
+  --show_ui=true \
+  --dup_chance=0.1
+``````

@@ -18,6 +18,7 @@ disable the UI.
 
 ## Usage
 
+#### GCP
 Example usage to test a deployment of `cmd/tesseract/gcp`:
 
 ```shell
@@ -55,6 +56,10 @@ go run ./internal/hammer \
   --bearer_token=$(gcloud auth print-access-token) \
   --show_ui=false
 ```
+
+### POSIX
+
+Use [these](/cmd/tesseract/posix/README.md#hammer) instructions.
 
 ## Design
 
