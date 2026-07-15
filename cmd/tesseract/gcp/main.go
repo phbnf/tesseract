@@ -57,8 +57,6 @@ func init() {
 	flag.Var(&additionalSigners, "additional_signer_private_key_secret_name", "Private key secret name for additional Ed25519 checkpoint signatures, may be supplied multiple times. Format: projects/{projectId}/secrets/{secretName}/versions/{secretVersion}.")
 	flag.Var(&rootsRejectFingerprints, "roots_reject_fingerprints", "Hex-encoded SHA-256 fingerprint of a root certificate to reject. May be specified multiple times.")
 	flag.Float64Var(&dedupRL, "rate_limit_dedup", 100, "Rate limit for resolving duplicate submissions, in requests per second - i.e. duplicate requests for already integrated entries, which need to be fetched from the log storage by TesseraCT to extract their timestamp. When 0, all duplicate submissions are rejected. When negative, no rate limit is applied.")
-	// DEPRECATED: will be removed shortly
-	flag.Float64Var(&dedupRL, "pushback_max_dedupe_in_flight", 100, "DEPRECATED: use rate_limit_dedup. Maximum number of in-flight duplicate add requests - i.e. the number of requests matching entries that have already been integrated, but need to be fetched by the client to retrieve their timestamp. When 0, duplicate entries are always pushed back.")
 	flag.Var(&rootsRemoteFetchURLs, "roots_remote_fetch_url", "URL to fetch additional trusted roots from. May be specified multiple times.")
 }
 
