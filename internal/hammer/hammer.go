@@ -146,7 +146,12 @@ func main() {
 	if len(writeLogURL) == 0 {
 		writeLogURL = logURL
 	}
-	w := mustCreateWriters(writeLogURL, newAddChainResponseVerifier(pubKey))
+	verifier, err := newAddChainResponseVerifier(pubKey)
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to create add chain response verifier", slog.Any("error", err))
+		os.Exit(1)
+	}
+	w := mustCreateWriters(writeLogURL, verifier)
 
 	var cpRaw []byte
 	cons := client.UnilateralConsensus(r.ReadCheckpoint)
@@ -562,20 +567,22 @@ func retryDelay(retryAfter string, defaultDur time.Duration) time.Duration {
 	return defaultDur
 }
 
+type addChainResponseVerifier func(reqBytes []byte, respBytes []byte) (uint64, uint64, error)
+
 // newAddChainResponseVerifier returns a verification callback that parses the add-chain
 // response, verifies the SCT signature against the submitted request and log public
 // key, and returns the leaf index from the extensions and timestamp from the response.
-func newAddChainResponseVerifier(pubKey crypto.PublicKey) func(reqBytes []byte, respBytes []byte) (uint64, uint64, error) {
+func newAddChainResponseVerifier(pubKey crypto.PublicKey) (addChainResponseVerifier, error) {
 	if pubKey == nil {
 		return func(reqBytes []byte, respBytes []byte) (uint64, uint64, error) {
 			return 0, 0, errors.New("cannot verify SCT: log public key is nil")
-		}
+		}, errors.New("log public key is nil")
 	}
 	pubBytes, err := x509.MarshalPKIXPublicKey(pubKey)
 	if err != nil {
 		return func(reqBytes []byte, respBytes []byte) (uint64, uint64, error) {
 			return 0, 0, fmt.Errorf("failed to marshal public key: %w", err)
-		}
+		}, fmt.Errorf("can't parse public key: %v", err)
 	}
 	expectedID := sha256.Sum256(pubBytes)
 
@@ -655,14 +662,10 @@ func newAddChainResponseVerifier(pubKey crypto.PublicKey) func(reqBytes []byte, 
 			if !ecdsa.VerifyASN1(pk, digest[:], ds.Signature) {
 				return 0, 0, errors.New("SCT ECDSA signature verification failed")
 			}
-		case *rsa.PublicKey:
-			if err := rsa.VerifyPKCS1v15(pk, crypto.SHA256, digest[:], ds.Signature); err != nil {
-				return 0, 0, fmt.Errorf("SCT RSA signature verification failed: %w", err)
-			}
 		default:
 			return 0, 0, fmt.Errorf("unsupported public key type: %T", pubKey)
 		}
 
 		return uint64(leafIdx), resp.Timestamp, nil
-	}
+	}, nil
 }
