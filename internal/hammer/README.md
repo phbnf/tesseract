@@ -18,7 +18,7 @@ disable the UI.
 
 ## Usage
 
-#### GCP
+### GCP
 Example usage to test a deployment of `cmd/tesseract/gcp`:
 
 ```shell
