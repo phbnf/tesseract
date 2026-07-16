@@ -159,4 +159,3 @@ go run ./internal/hammer \
   --leaf_write_goal=4000 \
   --show_ui=true \
   --dup_chance=0.1
-``````
