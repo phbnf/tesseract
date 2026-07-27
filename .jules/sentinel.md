@@ -1,0 +1,4 @@
+## 2025-03-22 - [CWE-200] Exposure of Profiling Endpoint
+**Vulnerability:** The profiling endpoint `/debug/pprof` was exposed automatically in the main HTTP servers (`cmd/tesseract/posix/main.go` and `cmd/tesseract/gcp/main.go`).
+**Learning:** The blank import `_ "net/http/pprof"` automatically registers its profiling handlers on the global `http.DefaultServeMux`. If an application relies on `http.Handle` (which also attaches to `DefaultServeMux`), those sensitive profiling endpoints will be publicly accessible on the internet, leaking internal application state and potentially introducing denial of service vectors.
+**Prevention:** Avoid the blank import of `net/http/pprof` in any binary that starts a public-facing HTTP server using the default mux. If profiling is needed, register pprof handlers on a separate, internal-only `http.ServeMux` instead.
