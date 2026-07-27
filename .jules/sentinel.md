@@ -1,0 +1,5 @@
+## 2025-03-24 - Unauthenticated Profiling Endpoint Exposure
+
+**Vulnerability:** The profiling endpoint `/debug/pprof` was inadvertently exposed due to `import _ "net/http/pprof"` in `cmd/tesseract/gcp/main.go` and `cmd/tesseract/posix/main.go`.
+**Learning:** Importing `net/http/pprof` automatically registers its handlers with the default `http.DefaultServeMux`. When these services expose the default mux (via `http.Handle` or `http.ListenAndServe(nil)` or implicitly exposing the global default mux due to how HTTP handlers were registered), the profiling endpoints become accessible to unauthenticated attackers, potentially leaking sensitive memory, CPU, or internal configuration data (CWE-200).
+**Prevention:** Avoid blanket `import _ "net/http/pprof"` in entrypoint packages, especially those serving public traffic. If profiling is needed, register pprof handlers explicitly to an internal, authenticated, or bound-to-localhost mux, or avoid importing it entirely if profiling is not strictly required.
