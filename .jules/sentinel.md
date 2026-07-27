@@ -1,0 +1,4 @@
+## 2024-05-23 - Prevent exposing profiling and metrics endpoints (CWE-200)
+**Vulnerability:** Profiling endpoints (`net/http/pprof`) and metrics endpoints (`expvar`) were inadvertently exposed on public-facing servers via `http.DefaultServeMux` due to anonymous imports.
+**Learning:** In Go, anonymously importing `net/http/pprof` or `expvar` automatically registers handlers on the global `http.DefaultServeMux`. If an application uses `http.DefaultServeMux` for its public API or is exposed without a reverse proxy filtering these routes, sensitive runtime data (profiling, metrics) is leaked.
+**Prevention:** Avoid anonymous imports of `net/http/pprof` or `expvar` in production binaries unless explicitly configuring a separate, secure, private server for them. Use alternative profiling or metrics gathering (like OpenTelemetry) that don't implicitly bind to the default mux.
