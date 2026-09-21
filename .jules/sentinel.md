@@ -1,0 +1,4 @@
+## 2025-02-15 - [Information Exposure]
+**Vulnerability:** Information Exposure (CWE-200) via exposed profiling and debug endpoints in production cloud deployments. The blank imports `_ "net/http/pprof"` and `_ "expvar"` automatically register diagnostic handlers on `http.DefaultServeMux`, which gets exposed on the default HTTP port.
+**Learning:** These endpoints can expose sensitive internal metrics, configuration, and source details to an attacker. Debug endpoints should never be blindly exposed to external networks in production environments.
+**Prevention:** Avoid blank imports of `net/http/pprof` or `expvar` in production entry points. For debugging and metrics, specifically bind them to loopback interfaces, require authentication/authorization, or use a separate dedicated, protected port/multiplexer.
