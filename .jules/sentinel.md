@@ -1,0 +1,4 @@
+## 2024-05-25 - [Fix Profiling Endpoints Exposure]
+**Vulnerability:** Profiling and metrics endpoints (`/debug/pprof/*` and `/debug/vars`) were inadvertently exposed on the global `http.DefaultServeMux` in cloud personality entry points (`cmd/tesseract/*/main.go`) due to anonymous imports of `net/http/pprof` and `expvar`.
+**Learning:** Anonymous imports of these packages automatically register handlers on `http.DefaultServeMux`. In cloud environments, where custom multiplexers or the default multiplexer might be exposed to the public internet, this introduces CWE-200 (exposure of sensitive information to an unauthorized actor).
+**Prevention:** Avoid anonymous imports of `net/http/pprof` and `expvar` in production entry points. Use specific handlers and register them on a dedicated, internal-only multiplexer if profiling is needed, or omit them entirely if OpenTelemetry is used for monitoring.
