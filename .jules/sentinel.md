@@ -1,0 +1,4 @@
+## 2025-05-18 - Exposed Profiling and Metrics Endpoints (CWE-200)
+**Vulnerability:** Anonymous imports of `net/http/pprof` and `expvar` automatically register profiling (`/debug/pprof/*`) and metrics (`/debug/vars`) handlers on the global `http.DefaultServeMux`. If `http.DefaultServeMux` is exposed via a public-facing `http.Server`, this leaks sensitive operational and memory profiling data.
+**Learning:** Framework-level convenience features like anonymous imports modify global state in ways that are easily overlooked and can have severe security implications when default multiplexers are used.
+**Prevention:** Avoid anonymous imports of `net/http/pprof` and `expvar`. If profiling or metrics are required, explicitly register them on a dedicated internal multiplexer bound to a private network interface or protected port, separate from the public-facing HTTP server.
