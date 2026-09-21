@@ -1,0 +1,4 @@
+## 2024-06-05 - Remove default pprof/expvar handlers from default ServeMux
+**Vulnerability:** The codebase had imports for `_ "net/http/pprof"` in `cmd/tesseract/posix/main.go` and `cmd/tesseract/gcp/main.go`, and `_ "expvar"` in `cmd/tesseract/posix/main.go`. This automatically exposes profiling endpoint `/debug/pprof/*` and metrics endpoint `/debug/vars` on `http.DefaultServeMux`, leading to potential CWE-200 vulnerabilities (exposure of sensitive information).
+**Learning:** These side-effect imports expose debug endpoints indiscriminately on the global multiplexer, which might be publicly accessible when creating the main HTTP server without explicitly defining a private multiplexer for them.
+**Prevention:** Avoid side-effect imports of `net/http/pprof` or `expvar`. If debug endpoints are needed, register them explicitly on an internal, authenticated, or port-separated multiplexer.
