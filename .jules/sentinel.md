@@ -1,0 +1,4 @@
+## 2026-05-28 - Information Exposure via Profiling and Metrics Endpoints (CWE-200)
+**Vulnerability:** The profiling endpoint `net/http/pprof` and metrics endpoint `expvar` were anonymously imported in `cmd/tesseract/gcp/main.go` and `cmd/tesseract/posix/main.go`, inadvertently exposing `/debug/pprof/*` and `/debug/vars` on `http.DefaultServeMux`.
+**Learning:** Anonymous imports of `net/http/pprof` and `expvar` in entry points that use the default HTTP ServeMux for cloud personalities can expose sensitive profiling and metrics data, creating CWE-200 vulnerabilities. Cloud personalities should utilize OpenTelemetry (otel) instead.
+**Prevention:** Avoid anonymous imports of `net/http/pprof` and `expvar` in entry point packages unless specifically required, and never on public-facing endpoints using the default serve mux.
