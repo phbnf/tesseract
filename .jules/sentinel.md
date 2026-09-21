@@ -1,0 +1,4 @@
+## 2024-05-15 - Information Exposure via DefaultServeMux
+**Vulnerability:** Information Exposure (CWE-200) due to blanket imports `_ "net/http/pprof"` and `_ "expvar"`.
+**Learning:** In Go, anonymously importing `net/http/pprof` or `expvar` automatically registers HTTP endpoints (e.g. `/debug/pprof/*`, `/debug/vars`) onto the global `http.DefaultServeMux`. If an application relies on `http.DefaultServeMux` for any public-facing HTTP server, these profiling and metrics endpoints become publicly accessible, potentially exposing sensitive internal runtime information.
+**Prevention:** Avoid blanket importing `net/http/pprof` or `expvar` in main packages for cloud personalities or any publicly accessible HTTP server entry points. If profiling or metrics are required, explicitly register them on an internal or protected router/multiplexer, or use an observability framework like OpenTelemetry.
