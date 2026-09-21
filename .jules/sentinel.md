@@ -1,0 +1,4 @@
+## 2026-06-25 - [Fix exposure of profiling endpoints]
+**Vulnerability:** Profiling endpoints (`/debug/pprof` and `/debug/vars`) are automatically exposed on the globally accessible `http.DefaultServeMux` due to anonymous imports of `net/http/pprof` and `expvar` in `cmd/tesseract/gcp/main.go` and `cmd/tesseract/posix/main.go`. This leads to a CWE-200 vulnerability.
+**Learning:** Anonymous imports of standard library profiling packages (`net/http/pprof` and `expvar`) silently bind their endpoints to the global `http.DefaultServeMux`, making them accessible to anyone if that mux is served publicly.
+**Prevention:** Avoid anonymous imports of `net/http/pprof` and `expvar` in production binaries. If profiling is required, use OpenTelemetry (which is already utilized by the cloud personalities) or bind these endpoints to a restricted, internal administrative server.
