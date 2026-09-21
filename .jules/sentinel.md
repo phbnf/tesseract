@@ -1,0 +1,4 @@
+## 2026-06-02 - Fix CWE-200 profiling and metrics endpoint exposure
+**Vulnerability:** The application was importing `_ "net/http/pprof"` and `_ "expvar"` in binaries that start HTTP servers configured to use the global `http.DefaultServeMux`. This automatically registered and exposed profiling endpoints (`/debug/pprof/*`) and internal metrics (`/debug/vars`) publicly.
+**Learning:** In Go, anonymous imports of `net/http/pprof` and `expvar` automatically add routes to `http.DefaultServeMux`. If a custom public-facing server uses this mux (e.g., via `http.Handle("/", handler)` without defining a custom router), these endpoints are inadvertently exposed, resulting in a CWE-200 vulnerability.
+**Prevention:** Avoid using anonymous imports of `net/http/pprof` and `expvar` in code that runs public-facing HTTP servers using `http.DefaultServeMux`. If profiling or metrics are needed, register them to a private or authenticated multiplexer instead.
