@@ -1,0 +1,4 @@
+## 2026-04-10 - [Fix CWE-200 pprof exposure]
+**Vulnerability:** The HTTP server entry point `cmd/tesseract/posix/main.go` inadvertently exposed profiling and metrics endpoints (`/debug/pprof/*`) on `http.DefaultServeMux` because of a wildcard import `_ "net/http/pprof"`. This can lead to a CWE-200 vulnerability.
+**Learning:** The entry points in `cmd/tesseract/*/main.go` must not import `_ "net/http/pprof"` or `_ "expvar"` to avoid inadvertently exposing these endpoints on `http.DefaultServeMux` to the internet, potentially leaking sensitive memory, cpu profile and environment details.
+**Prevention:** Do not import `_ "net/http/pprof"` or `_ "expvar"` globally. If profiling is needed, it should be bound to a separate internal admin port rather than the main `http.ServeMux` or `http.DefaultServeMux`.
