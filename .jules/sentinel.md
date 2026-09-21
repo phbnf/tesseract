@@ -1,0 +1,4 @@
+## 2024-03-04 - [Fix Information Exposure via Global Profiling Endpoints]
+**Vulnerability:** Automatically exposing profiling endpoints on `http.DefaultServeMux` due to a blank import `_ "net/http/pprof"` in `cmd/tesseract/posix/main.go`.
+**Learning:** In Go, the `net/http/pprof` package registers its handlers via `init()` onto the global `http.DefaultServeMux`. If the application binds its server to this default mux, sensitive debug information (heap, CPU, goroutines) is inadvertently exposed to external users (CWE-200), bypassing standard authorization or internal network segregations. This behavior can be identified automatically by static analysis tools like `gosec` (Rule G108).
+**Prevention:** Avoid blank importing `net/http/pprof` unless profiling is explicitly required. If needed, mount the `pprof` handlers onto a separate, dedicated internal `ServeMux` instead of relying on the default global mux.
