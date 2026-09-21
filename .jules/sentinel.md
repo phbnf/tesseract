@@ -1,0 +1,4 @@
+## 2024-05-24 - CWE-200: Profiling and Metrics Endpoint Exposure via DefaultServeMux
+**Vulnerability:** Anonymous imports of `net/http/pprof` and `expvar` in `cmd/tesseract/gcp/main.go` and `cmd/tesseract/posix/main.go` expose sensitive profiling and metrics endpoints (`/debug/pprof/*` and `/debug/vars`) on the globally accessible `http.DefaultServeMux`.
+**Learning:** Using `http.DefaultServeMux` (by passing `nil` as the handler or omitting `Handler` in `http.Server`) makes the application vulnerable to exposing any endpoints registered by imported packages, particularly `pprof` and `expvar`.
+**Prevention:** Avoid using anonymous imports for `pprof` and `expvar` in production entry points. Use custom `http.ServeMux` instances instead of the default multiplexer to ensure only explicitly registered routes are exposed.
