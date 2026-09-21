@@ -129,6 +129,7 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	logSigV, err := logSigVerifier(*origin, *logPubKey)
 	if err != nil {

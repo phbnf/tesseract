@@ -81,6 +81,7 @@ func (r *LeafReader) Run(ctx context.Context) {
 		panic("LeafReader was ran multiple times")
 	}
 	ctx, r.cancel = context.WithCancel(ctx)
+	defer r.cancel()
 	for {
 		select {
 		case <-ctx.Done():
@@ -223,6 +224,7 @@ func (w *LogWriter) Run(ctx context.Context) {
 		panic("LogWriter was run multiple times")
 	}
 	ctx, w.cancel = context.WithCancel(ctx)
+	defer w.cancel()
 	newLeaf := w.gen()
 	for {
 		select {
@@ -305,6 +307,7 @@ func (v *MMDVerifier) Run(ctx context.Context) {
 		panic("MMDVerifier was ran multiple times")
 	}
 	ctx, v.cancel = context.WithCancel(ctx)
+	defer v.cancel()
 
 	var checkpoint log.Checkpoint
 	var proofBuilder *client.ProofBuilder
