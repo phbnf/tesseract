@@ -1,0 +1,4 @@
+## 2024-05-15 - [HIGH] Fix Profiling Endpoint Exposure
+**Vulnerability:** The application was automatically exposing profiling endpoints (`/debug/pprof/*`) on `http.DefaultServeMux` due to the `_ "net/http/pprof"` import in `cmd/tesseract/posix/main.go` and `cmd/tesseract/gcp/main.go`. This is a CWE-200 vulnerability that could leak sensitive internal runtime metrics, memory allocations, and environment information to an attacker.
+**Learning:** In Go, importing `net/http/pprof` in this manner automatically registers profiling endpoints to the default HTTP multiplexer. This is a common Information Disclosure vulnerability if the default multiplexer is exposed to untrusted networks.
+**Prevention:** Avoid using the anonymous `_ "net/http/pprof"` import in production binaries. If profiling is needed, explicitly register it onto a secure, internal-only HTTP server rather than accidentally exposing it on the main server.
