@@ -1,0 +1,4 @@
+## 2024-06-21 - [CWE-200] Remove exposed pprof and expvar endpoints
+**Vulnerability:** The `net/http/pprof` and `expvar` endpoints were exposed via anonymous imports in `cmd/tesseract/posix/main.go` and `cmd/tesseract/gcp/main.go`, which registers them on `http.DefaultServeMux`. This allows attackers to access profiling and metrics data on the public-facing HTTP server.
+**Learning:** Anonymous imports of `net/http/pprof` and `expvar` automatically bind their handlers to `http.DefaultServeMux`. If `http.ListenAndServe` or an `http.Server` handles requests on an endpoint using the default mux, the endpoints become exposed.
+**Prevention:** Avoid anonymous imports of `net/http/pprof` and `expvar` in entry points. Explicitly configure isolated HTTP servers or specific route configurations when diagnostic handlers are needed, and do not expose them on public-facing networks.
