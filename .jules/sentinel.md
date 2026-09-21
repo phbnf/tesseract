@@ -1,0 +1,4 @@
+## 2024-05-29 - Prevent CWE-200 by avoiding anonymous imports of pprof and expvar
+**Vulnerability:** Information exposure (CWE-200) via exposed profiling (`/debug/pprof/*`) and metrics (`/debug/vars`) endpoints.
+**Learning:** Anonymous imports of `net/http/pprof` and `expvar` automatically register their respective endpoints on the globally accessible `http.DefaultServeMux`. If an application exposes this default mux on a public-facing port, it inadvertently exposes sensitive runtime metrics and profiling capabilities.
+**Prevention:** Avoid using anonymous imports (`_ "net/http/pprof"` and `_ "expvar"`) in production code, particularly in HTTP server entry points. If profiling or metrics are required, explicitly register them on an internal, authenticated, or non-public multiplexer, separate from the main application traffic.
