@@ -1,0 +1,5 @@
+## 2025-02-28 - Removed global pprof endpoints
+
+**Vulnerability:** Information Disclosure (CWE-200). `net/http/pprof` endpoints were exposed by anonymous imports (`_ "net/http/pprof"`) on the globally accessible `http.DefaultServeMux` in the `posix` and `gcp` entries. The `posix` entry point was also exposing `expvar`. This exposed profiling info and metrics directly on public-facing servers.
+**Learning:** Anonymous imports of diagnostic packages automatically register handlers to `http.DefaultServeMux`. If `http.ListenAndServe()` is started using `DefaultServeMux` or a custom router without strict isolation, these diagnostic endpoints become public.
+**Prevention:** Remove anonymous imports of `net/http/pprof` and `expvar` in production entry points. If profiling or metrics are required, explicitly register them on a separate `http.ServeMux` that is only exposed internally (e.g., bound to `localhost` or behind an internal load balancer/auth proxy). Use `otel` or similar telemetry frameworks deliberately rather than implicitly exposing `net/http/pprof` endpoints.
