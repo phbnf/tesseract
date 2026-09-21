@@ -1,0 +1,4 @@
+## 2025-05-24 - Exposing Profiling Endpoints via http.DefaultServeMux
+**Vulnerability:** `net/http/pprof` and `expvar` were anonymously imported in `cmd/tesseract/posix/main.go` and `cmd/tesseract/gcp/main.go`. This automatically exposes profiling (`/debug/pprof/*`) and metrics (`/debug/vars`) endpoints on the globally accessible `http.DefaultServeMux`, leading to potential information disclosure (CWE-200).
+**Learning:** Anonymous imports of standard library profiling and metrics packages implicitly bind to the default global multiplexer. When this multiplexer is used or exposed via public-facing servers without proper routing restrictions, sensitive internal state is leaked.
+**Prevention:** Avoid anonymous imports of `net/http/pprof` and `expvar` in entrypoints that launch public-facing HTTP servers. If profiling or metrics are required, explicitly bind them to a separate, private, internal multiplexer and listen on an internal-only port or interface.
