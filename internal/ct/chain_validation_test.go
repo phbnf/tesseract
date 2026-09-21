@@ -399,6 +399,7 @@ func TestValidate(t *testing.T) {
 			cvv := cv
 			if test.modifyCV != nil {
 				test.modifyCV(&cvv)
+				cvv.refreshMaps()
 			}
 			chain, err := parseChain(test.chain)
 			if err != nil {
